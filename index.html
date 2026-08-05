@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ErgUltra Live Overlay</title>
+  <!--
+    ErgUltra Live Stream Overlay — standalone page.
+
+    Supabase blocks renderable HTML on the Edge Function domain (forces
+    text/plain + sandbox CSP), so the overlay page is served as a normal
+    static file instead. It reads ALL config from the query string, so no
+    secrets are hardcoded here:
+
+      u = Supabase project URL   (EXPO_PUBLIC_SUPABASE_URL)
+      k = Supabase anon key      (EXPO_PUBLIC_SUPABASE_ANON_KEY, publishable)
+      c = channel code           (the athlete's user id)
+      pos, scale, margin, name, theme = styling
+
+    Usage in OBS -> Browser Source (local file works too):
+      file:///.../overlay.html?u=https://<ref>.supabase.co&k=<anon>&c=<userId>&pos=bottom-left&scale=1
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --accent: #7C3AED;
+      --bg: #181425;
+      --fg: #FFFFFF;
+      --muted: #9CA3AF;
+      --border: #2D2640;
+      --success: #22C55E;
+      --error: #EF4444;
+      --scale: 1;
+      --margin: 40px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: transparent; width: 100%; height: 100%; overflow: hidden; }
+    body { font-family: "DM Sans", sans-serif; color: var(--fg); }
+    .mono { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+    .title { font-family: "Space Grotesk", sans-serif; }
+
+    #overlay { position: fixed; inset: 0; pointer-events: none; }
+    .anchor { position: fixed; transform: scale(var(--scale)); }
+    .pos-bottom-left .anchor { left: var(--margin); bottom: var(--margin); transform-origin: bottom left; }
+    .pos-bottom-right .anchor { right: var(--margin); bottom: var(--margin); transform-origin: bottom right; }
+    .pos-top-left .anchor { left: var(--margin); top: var(--margin); transform-origin: top left; }
+    .pos-top-right .anchor { right: var(--margin); top: var(--margin); transform-origin: top right; }
+    .pos-center-bottom .anchor { left: 50%; bottom: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: bottom center; }
+    .pos-center-top .anchor { left: 50%; top: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: top center; }
+
+    .card {
+      width: 380px;
+      background: rgba(24, 20, 37, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+      transition: border-color 300ms ease, opacity 200ms ease;
+    }
+    .card.flash { animation: flash 600ms ease; }
+    @keyframes flash { 0% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); } 100% { border-color: var(--border); box-shadow: 0 8px 28px rgba(0,0,0,0.45); } }
+    .card.paused { opacity: 0.7; }
+
+    .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .hdr .erg { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
+    .athlete { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .badge { font-size: 11px; font-weight: 500; letter-spacing: 1px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .badge.on { color: var(--fg); border-color: var(--accent); }
+    .badge.hide { display: none; }
+
+    .label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .hero { margin: 6px 0 12px; }
+    .hero .clock { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 46px; line-height: 1; }
+
+    .dist { display: flex; align-items: baseline; justify-content: space-between; }
+    .dist .val { font-size: 18px; font-weight: 700; }
+    .dist .rem { font-size: 12px; color: var(--muted); }
+    .bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; margin: 6px 0 4px; }
+    .bar > span { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 300ms ease; }
+    .pct { font-size: 12px; color: var(--muted); }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .cell { text-align: left; }
+    .cell .v { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; min-width: 62px; display: inline-block; }
+    .cell .u { font-size: 10px; color: var(--muted); }
+
+    .secondary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px; }
+    .totals { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+
+    .trans .clock { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 46px; line-height: 1; }
+    .trans .next { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 18px; color: var(--accent); margin-top: 4px; }
+    .trans .prev { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .urgent .clock { color: var(--error); }
+
+    .waiting { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 14px; color: var(--muted); }
+    .hide { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="overlay" class="pos-bottom-left">
+    <div class="anchor">
+      <div id="card" class="card">
+        <div id="waiting" class="waiting">Waiting for data…</div>
+
+        <div id="active" class="hide">
+          <div class="hdr">
+            <span id="ergLabel" class="erg">—</span>
+            <span id="badge" class="badge hide"></span>
+          </div>
+          <div id="athlete" class="athlete hide"></div>
+
+          <div class="hero">
+            <div class="label">Round time left</div>
+            <div id="capClock" class="clock">--:--</div>
+          </div>
+
+          <div class="dist">
+            <span id="distVal" class="val mono">0 / 0 m</span>
+            <span id="remVal" class="rem mono"></span>
+          </div>
+          <div class="bar"><span id="barFill"></span></div>
+          <div id="pctVal" class="pct mono">0%</div>
+
+          <div class="metrics">
+            <div class="cell"><div class="label">Pace</div><span id="paceVal" class="v">--:--</span><div id="paceUnit" class="u">/500m</div></div>
+            <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
+            <div class="cell"><div class="label" id="cadLabel">s/min</div><span id="cadVal" class="v">--</span><div class="u">&nbsp;</div></div>
+            <div class="cell"><div class="label">HR</div><span id="hrVal" class="v">--</span><div class="u">bpm</div></div>
+          </div>
+
+          <div class="metrics secondary">
+            <div class="cell"><div class="label">Proj. finish</div><span id="projVal" class="v">--:--</span><div class="u">round</div></div>
+            <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
+            <div class="cell"><div class="label">Ride time</div><span id="timeVal" class="v">0:00</span><div class="u">&nbsp;</div></div>
+          </div>
+
+          <div id="totals" class="totals">Yards 0 · 0.0 km · 0:00</div>
+        </div>
+
+        <div id="trans" class="trans hide">
+          <div class="hdr"><span class="erg title" id="transTitle">Transition</span></div>
+          <div class="label" id="transLabel">Next round in</div>
+          <div id="transClock" class="clock">--</div>
+          <div id="transNext" class="next">→ —</div>
+          <div id="transPrev" class="prev hide"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    (function () {
+      var qs = new URLSearchParams(location.search);
+      var supaUrl = qs.get("u") || "";
+      var supaKey = qs.get("k") || "";
+      var channel = qs.get("c") || "";
+      var overrideName = qs.get("name") || "";
+      var pos = qs.get("pos") || "bottom-left";
+      var scale = parseFloat(qs.get("scale") || "1");
+      if (!isFinite(scale) || scale <= 0) scale = 1;
+      scale = Math.max(0.3, Math.min(3, scale));
+      var margin = parseInt(qs.get("margin") || "40", 10);
+      if (!isFinite(margin) || margin < 0) margin = 40;
+
+      var root = document.getElementById("overlay");
+      root.className = "pos-" + pos;
+      root.style.setProperty("--scale", String(scale));
+      root.style.setProperty("--margin", margin + "px");
+
+      var el = function (id) { return document.getElementById(id); };
+      var latest = null;
+      var lastRecvMs = 0;
+      var lastErg = null;
+
+      function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
+      function fmtClock(sec) { if (!isFinite(sec) || sec < 0) sec = 0; return Math.floor(sec / 60) + ":" + pad(sec % 60); }
+      function fmtHMS(sec) { sec = Math.max(0, Math.floor(sec)); var h = Math.floor(sec / 3600); var m = Math.floor((sec % 3600) / 60); var s = sec % 60; return h > 0 ? (h + ":" + pad(m) + ":" + pad(s)) : (m + ":" + pad(s)); }
+      function fmtPace(p) { if (!p || p <= 0 || p >= 9999) return "--:--"; return Math.floor(p / 60) + ":" + pad(p % 60); }
+      function num(n) { return (n || 0).toLocaleString("en-US"); }
+      function ergName(e) { return e === "skierg" ? "SkiErg" : e === "rowerg" ? "RowErg" : e === "bikeerg" ? "BikeErg" : (e || "—"); }
+      function zoneColor(z) {
+        if (z === 1) return "#3B82F6"; if (z === 2) return "#22C55E"; if (z === 3) return "#EAB308";
+        if (z === 4) return "#F97316"; if (z === 5) return "#EF4444"; return "#9CA3AF";
+      }
+
+      function setBadge(d) {
+        var b = el("badge");
+        var txt = "";
+        var on = false;
+        if (d.isPaused) { txt = "PAUSED"; on = true; }
+        else if (d.simulation) { txt = "SIM"; }
+        else if (d.testMode) { txt = "TEST"; }
+        if (!txt) { b.className = "badge hide"; return; }
+        b.textContent = txt;
+        b.className = "badge" + (on ? " on" : "");
+      }
+
+      function renderActive(d, nowMs) {
+        el("waiting").className = "waiting hide";
+        el("trans").className = "trans hide";
+        el("active").className = "";
+
+        var card = el("card");
+        card.className = "card" + (d.isPaused ? " paused" : "");
+
+        el("ergLabel").textContent = "Round " + d.round + " · " + ergName(d.ergType);
+        setBadge(d);
+
+        var name = overrideName || d.athleteName || "";
+        var a = el("athlete");
+        if (name) { a.textContent = name; a.className = "athlete"; } else { a.className = "athlete hide"; }
+
+        var remain = d.roundRemainingSeconds || 0;
+        if (d.state === "active" && !d.isPaused) remain -= (nowMs - lastRecvMs) / 1000;
+        el("capClock").textContent = fmtClock(remain);
+
+        var dist = d.distance || 0;
+        var target = d.targetDistance || 0;
+        el("distVal").textContent = num(dist) + " / " + num(target) + " m";
+        var reached = target > 0 && dist >= target;
+        var pct = target > 0 ? (reached ? 100 : Math.min(99, Math.floor((dist / target) * 100))) : 0;
+        el("barFill").style.width = pct + "%";
+        el("pctVal").textContent = pct + "%";
+        el("remVal").textContent = reached ? "TARGET" : (num(Math.max(0, target - dist)) + " m left");
+
+        el("paceVal").textContent = fmtPace(d.pace);
+        el("paceUnit").textContent = d.ergType === "bikeerg" ? "/1000m" : "/500m";
+        el("wattsVal").textContent = d.watts > 0 ? String(Math.round(d.watts)) : "--";
+        el("cadLabel").textContent = d.ergType === "bikeerg" ? "RPM" : "s/min";
+        el("cadVal").textContent = d.strokeRate > 0 ? String(Math.round(d.strokeRate)) : "--";
+        var hr = el("hrVal");
+        hr.textContent = d.heartRate > 0 ? String(Math.round(d.heartRate)) : "--";
+        hr.style.color = d.heartRate > 0 ? zoneColor(d.hrZone || 0) : "#FFFFFF";
+
+        var proj = el("projVal");
+        if (d.projectedFinishSeconds && d.projectedFinishSeconds > 0) {
+          proj.textContent = fmtClock(d.projectedFinishSeconds);
+          proj.style.color = d.projectedFinishSeconds <= (d.roundDurationSeconds || 1e9) ? "#22C55E" : "#EF4444";
+        } else {
+          proj.textContent = "--:--";
+          proj.style.color = "#FFFFFF";
+        }
+
+        el("kcalVal").textContent = d.calories > 0 ? String(Math.round(d.calories)) : "--";
+
+        var elapsed = d.elapsedTime || 0;
+        if (d.state === "active" && !d.isPaused) elapsed += (nowMs - lastRecvMs) / 1000;
+        el("timeVal").textContent = fmtHMS(elapsed);
+
+        var km = ((d.totalDistance || 0) / 1000).toFixed(1);
+        el("totals").textContent = "Yards " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+      }
+
+      function renderTransition(d, nowMs) {
+        el("waiting").className = "waiting hide";
+        el("active").className = "hide";
+        var t = el("trans");
+
+        var secs = (d.transitionSeconds || 0) - (nowMs - lastRecvMs) / 1000;
+        if (secs < 0) secs = 0;
+        var urgent = secs <= 10;
+        t.className = "trans" + (urgent ? " urgent" : "");
+        el("transLabel").textContent = urgent ? "Starting soon" : "Next round in";
+        el("transClock").textContent = fmtClock(secs);
+        el("transNext").textContent = "→ " + ergName(d.nextErg || d.ergType);
+
+        var p = d.prevRound;
+        var pv = el("transPrev");
+        if (p) {
+          var line = "Last: R" + p.roundNumber + " " + ergName(p.ergType) + " · " + num(Math.round(p.distance)) + " m · " + fmtHMS(p.timeSeconds) + " · " + fmtPace(p.avgPace);
+          if (p.avgWatts && p.avgWatts > 0) line += " · " + Math.round(p.avgWatts) + " W";
+          pv.textContent = line;
+          pv.className = "prev";
+        } else {
+          pv.className = "prev hide";
+        }
+      }
+
+      function render() {
+        var nowMs = performance.now();
+        var d = latest;
+        var stale = !d || (nowMs - lastRecvMs > 5000);
+        if (stale) {
+          el("waiting").className = "waiting";
+          el("active").className = "hide";
+          el("trans").className = "trans hide";
+          return;
+        }
+        if (d.state === "transition") renderTransition(d, nowMs);
+        else renderActive(d, nowMs);
+      }
+
+      function onData(payload) {
+        if (payload && lastErg !== null && payload.ergType !== lastErg) {
+          var card = el("card");
+          card.classList.remove("flash");
+          void card.offsetWidth;
+          card.classList.add("flash");
+        }
+        if (payload) lastErg = payload.ergType;
+        latest = payload;
+        lastRecvMs = performance.now();
+      }
+
+      if (window.supabase && supaUrl && supaKey && channel) {
+        var sb = window.supabase.createClient(supaUrl, supaKey, { realtime: { params: { eventsPerSecond: 5 } } });
+        var ch = sb.channel("overlay:" + channel, { config: { broadcast: { self: false } } });
+        ch.on("broadcast", { event: "data" }, function (msg) { onData(msg.payload); });
+        ch.subscribe();
+      } else {
+        el("waiting").textContent = "Missing u / k / c parameters";
+      }
+
+      function loop() { render(); requestAnimationFrame(loop); }
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
