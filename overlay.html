@@ -7,26 +7,22 @@
   <!--
     ErgUltra Live Stream Overlay — standalone page.
 
-    Supabase blocks renderable HTML on the Edge Function domain (forces
-    text/plain + sandbox CSP), so the overlay page is served as a normal
-    static file instead. It reads ALL config from the query string, so no
-    secrets are hardcoded here:
+    Query params:
+      u, k, c          = Supabase URL, anon key, channel (user id)
+      pos, scale, margin, name = styling / athlete name
+      format           = youtube-footer | youtube-lower-third | youtube-card
+                        | instagram-vertical | instagram-square | instagram-panel
 
-      u = Supabase project URL   (EXPO_PUBLIC_SUPABASE_URL)
-      k = Supabase anon key      (EXPO_PUBLIC_SUPABASE_ANON_KEY, publishable)
-      c = channel code           (the athlete's user id)
-      pos, scale, margin, name, theme = styling
-
-    Usage in OBS -> Browser Source (local file works too):
-      file:///.../overlay.html?u=https://<ref>.supabase.co&k=<anon>&c=<userId>&pos=bottom-left&scale=1
+    OBS Browser Source: paste the full URL from Stream Setup.
   -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
       --accent: #7C3AED;
       --bg: #181425;
+      --bg-bar: rgba(13, 11, 17, 0.94);
       --fg: #FFFFFF;
       --muted: #9CA3AF;
       --border: #2D2640;
@@ -34,6 +30,8 @@
       --error: #EF4444;
       --scale: 1;
       --margin: 40px;
+      --pace-w: 5.2ch;
+      --time-w: 7.2ch;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: transparent; width: 100%; height: 100%; overflow: hidden; }
@@ -50,101 +48,466 @@
     .pos-center-bottom .anchor { left: 50%; bottom: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: bottom center; }
     .pos-center-top .anchor { left: 50%; top: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: top center; }
 
+    /* Full-bleed footer formats pin to bottom edge */
+    .fmt-youtube-footer .anchor,
+    .fmt-youtube-lower-third .anchor {
+      left: 50%;
+      right: auto;
+      top: auto;
+      bottom: var(--margin);
+      transform: translateX(-50%) scale(var(--scale));
+      transform-origin: bottom center;
+    }
+
+    .logo {
+      height: 22px;
+      width: auto;
+      display: block;
+      object-fit: contain;
+    }
+    .logo-lg { height: 28px; }
+
+    .label {
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+    .badge {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge.on { color: var(--fg); border-color: var(--accent); }
+    .badge.hide, .hide { display: none !important; }
+
+    .waiting {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    /* ── Card shell (youtube-card + instagram-*) ── */
     .card {
-      width: 380px;
-      background: rgba(24, 20, 37, 0.92);
+      width: 400px;
+      background: rgba(24, 20, 37, 0.94);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 18px 20px;
+      padding: 16px 18px 18px;
       box-shadow: 0 8px 28px rgba(0,0,0,0.45);
       transition: border-color 300ms ease, opacity 200ms ease;
     }
     .card.flash { animation: flash 600ms ease; }
-    @keyframes flash { 0% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); } 100% { border-color: var(--border); box-shadow: 0 8px 28px rgba(0,0,0,0.45); } }
-    .card.paused { opacity: 0.7; }
+    @keyframes flash {
+      0% { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+      100% { border-color: var(--border); box-shadow: 0 8px 28px rgba(0,0,0,0.45); }
+    }
+    .card.paused { opacity: 0.75; }
 
-    .hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-    .hdr .erg { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; }
-    .athlete { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-    .badge { font-size: 11px; font-weight: 500; letter-spacing: 1px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
-    .badge.on { color: var(--fg); border-color: var(--accent); }
-    .badge.hide { display: none; }
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .card-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .card-meta { min-width: 0; }
+    .card-meta .erg {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .athlete { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-    .label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-    .hero { margin: 6px 0 12px; }
-    .hero .clock { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 46px; line-height: 1; }
+    .hero-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 4px 0 12px;
+    }
+    .hero-cell .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 42px;
+      line-height: 1;
+      display: inline-block;
+      min-width: var(--pace-w);
+    }
+    .hero-cell.time .v { min-width: var(--time-w); font-size: 36px; }
+    .hero-cell .u { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    .dist { display: flex; align-items: baseline; justify-content: space-between; }
-    .dist .val { font-size: 18px; font-weight: 700; }
+    .cap-row { margin-bottom: 10px; }
+    .cap-row .clock {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .dist { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .dist .val { font-size: 16px; font-weight: 700; }
     .dist .rem { font-size: 12px; color: var(--muted); }
-    .bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; margin: 6px 0 4px; }
-    .bar > span { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width 300ms ease; }
+    .bar {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin: 6px 0 4px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+      border-radius: 999px;
+      transition: width 300ms ease;
+    }
     .pct { font-size: 12px; color: var(--muted); }
 
-    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
-    .cell { text-align: left; }
-    .cell .v { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 16px; min-width: 62px; display: inline-block; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .cell .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 18px;
+      min-width: 3.2ch;
+      display: inline-block;
+    }
     .cell .u { font-size: 10px; color: var(--muted); }
 
-    .secondary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px; }
-    .totals { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+    .secondary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .totals {
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 13px;
+      color: var(--muted);
+    }
 
-    .trans .clock { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 46px; line-height: 1; }
-    .trans .next { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 18px; color: var(--accent); margin-top: 4px; }
+    .trans .clock {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 46px;
+      line-height: 1;
+      margin-top: 6px;
+    }
+    .trans .next {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--accent);
+      margin-top: 4px;
+    }
     .trans .prev { font-size: 12px; color: var(--muted); margin-top: 10px; }
     .urgent .clock { color: var(--error); }
 
-    .waiting { font-family: "Space Grotesk", sans-serif; font-weight: 600; font-size: 14px; color: var(--muted); }
-    .hide { display: none !important; }
+    /* Instagram: taller premium panel, even larger pace */
+    .fmt-instagram-vertical .card,
+    .fmt-instagram-square .card {
+      width: 440px;
+      padding: 20px 22px 22px;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(30,26,46,0.96), rgba(13,11,17,0.96));
+    }
+    .fmt-instagram-vertical .hero-cell .v,
+    .fmt-instagram-square .hero-cell .v { font-size: 52px; }
+    .fmt-instagram-vertical .hero-cell.time .v,
+    .fmt-instagram-square .hero-cell.time .v { font-size: 44px; }
+    .fmt-instagram-panel .card { width: 420px; }
+    .fmt-instagram-panel .hero-cell .v { font-size: 48px; }
+
+    /* ── TV bar shell (youtube-footer / lower-third) ── */
+    .bar-shell {
+      display: none;
+      background: var(--bg-bar);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 10px 36px rgba(0,0,0,0.5);
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-shell::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--accent);
+    }
+    .fmt-youtube-footer .bar-shell,
+    .fmt-youtube-lower-third .bar-shell { display: block; }
+    .fmt-youtube-footer .card-shell,
+    .fmt-youtube-lower-third .card-shell { display: none; }
+
+    .fmt-youtube-footer .bar-shell {
+      width: min(1840px, calc(100vw - 80px));
+      border-radius: 12px;
+    }
+    .fmt-youtube-lower-third .bar-shell {
+      width: min(1280px, calc(100vw - 160px));
+    }
+
+    .bar-inner {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 14px 22px 14px 24px;
+      min-height: 92px;
+    }
+    .bar-brand {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 160px;
+      flex-shrink: 0;
+    }
+    .bar-title {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 220px;
+    }
+    .bar-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    .bar-heroes {
+      display: flex;
+      align-items: stretch;
+      gap: 28px;
+      flex: 1;
+      justify-content: center;
+      min-width: 0;
+    }
+    .bar-hero { min-width: 0; }
+    .bar-hero .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 54px;
+      line-height: 1;
+      display: inline-block;
+      min-width: var(--pace-w);
+      letter-spacing: -1px;
+    }
+    .bar-hero.time .v { min-width: var(--time-w); font-size: 48px; }
+    .bar-hero .u { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .bar-stats {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      padding-left: 18px;
+    }
+    .bar-stat .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 22px;
+      line-height: 1.1;
+      min-width: 3.2ch;
+      display: inline-block;
+    }
+    .bar-stat .u { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .bar-cap {
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      padding-left: 18px;
+      min-width: 110px;
+    }
+    .bar-cap .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .bar-shell.paused { opacity: 0.75; }
+    .bar-shell.flash { animation: flash 600ms ease; }
+
+    .bar-waiting {
+      padding: 18px 24px;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 600;
+      color: var(--muted);
+    }
+    .bar-trans {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 14px 22px;
+    }
+    .bar-trans .clock {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 42px;
+    }
+    .bar-trans .next {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      color: var(--accent);
+    }
   </style>
 </head>
 <body>
-  <div id="overlay" class="pos-bottom-left">
+  <div id="overlay" class="pos-center-bottom fmt-youtube-footer">
     <div class="anchor">
-      <div id="card" class="card">
-        <div id="waiting" class="waiting">Waiting for data…</div>
+      <!-- Card layouts -->
+      <div id="cardShell" class="card-shell">
+        <div id="card" class="card">
+          <div id="waiting" class="waiting">Waiting for data…</div>
 
-        <div id="active" class="hide">
-          <div class="hdr">
-            <span id="ergLabel" class="erg">—</span>
-            <span id="badge" class="badge hide"></span>
+          <div id="active" class="hide">
+            <div class="card-top">
+              <div class="card-brand">
+                <img class="logo logo-lg" src="assets/ergultra-logo.png" alt="ergultra" />
+                <div class="card-meta">
+                  <div id="ergLabel" class="erg">—</div>
+                  <div id="athlete" class="athlete hide"></div>
+                </div>
+              </div>
+              <span id="badge" class="badge hide"></span>
+            </div>
+
+            <div id="capRow" class="cap-row hide">
+              <div class="label" id="capLabel">Round time left</div>
+              <div id="capClock" class="clock mono">--:--</div>
+            </div>
+
+            <div class="hero-row">
+              <div class="hero-cell">
+                <div class="label">Pace</div>
+                <span id="paceVal" class="v">--:--</span>
+                <div id="paceUnit" class="u">/500m</div>
+              </div>
+              <div class="hero-cell time">
+                <div class="label" id="timeLabel">Time</div>
+                <span id="timeVal" class="v">0:00</span>
+                <div class="u">&nbsp;</div>
+              </div>
+            </div>
+
+            <div class="dist">
+              <span id="distVal" class="val mono">0 / 0 m</span>
+              <span id="remVal" class="rem mono"></span>
+            </div>
+            <div class="bar"><span id="barFill"></span></div>
+            <div id="pctVal" class="pct mono">0%</div>
+
+            <div class="metrics">
+              <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
+              <div class="cell"><div class="label" id="cadLabel">s/min</div><span id="cadVal" class="v">--</span><div class="u">&nbsp;</div></div>
+              <div class="cell"><div class="label">HR</div><span id="hrVal" class="v">--</span><div class="u">bpm</div></div>
+              <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
+            </div>
+
+            <div id="secondaryRow" class="metrics secondary">
+              <div class="cell"><div class="label">Proj. finish</div><span id="projVal" class="v">--:--</span><div class="u">round</div></div>
+              <div class="cell"><div class="label">Segment</div><span id="segVal" class="v">--</span><div class="u">&nbsp;</div></div>
+              <div class="cell"><div class="label">Ride</div><span id="rideVal" class="v">0:00</span><div class="u">&nbsp;</div></div>
+            </div>
+
+            <div id="totals" class="totals">Yards 0 · 0.0 km · 0:00</div>
           </div>
-          <div id="athlete" class="athlete hide"></div>
 
-          <div class="hero">
-            <div class="label">Round time left</div>
-            <div id="capClock" class="clock">--:--</div>
+          <div id="trans" class="trans hide">
+            <div class="card-top">
+              <div class="card-brand">
+                <img class="logo" src="assets/ergultra-logo.png" alt="ergultra" />
+                <span class="erg title" id="transTitle">Transition</span>
+              </div>
+            </div>
+            <div class="label" id="transLabel">Next round in</div>
+            <div id="transClock" class="clock">--</div>
+            <div id="transNext" class="next">→ —</div>
+            <div id="transPrev" class="prev hide"></div>
           </div>
+        </div>
+      </div>
 
-          <div class="dist">
-            <span id="distVal" class="val mono">0 / 0 m</span>
-            <span id="remVal" class="rem mono"></span>
+      <!-- TV broadcast bar -->
+      <div id="barShell" class="bar-shell">
+        <div id="barWaiting" class="bar-waiting">Waiting for data…</div>
+
+        <div id="barActive" class="hide">
+          <div class="bar-inner">
+            <div class="bar-brand">
+              <img class="logo logo-lg" src="assets/ergultra-logo.png" alt="ergultra" />
+              <div>
+                <div id="barTitle" class="bar-title">—</div>
+                <div id="barSub" class="bar-sub"></div>
+              </div>
+            </div>
+
+            <div class="bar-heroes">
+              <div class="bar-hero">
+                <div class="label">Pace</div>
+                <span id="barPace" class="v">--:--</span>
+                <div id="barPaceUnit" class="u">/500m</div>
+              </div>
+              <div class="bar-hero time">
+                <div class="label" id="barTimeLabel">Time</div>
+                <span id="barTime" class="v">0:00</span>
+                <div class="u">&nbsp;</div>
+              </div>
+            </div>
+
+            <div id="barCap" class="bar-cap hide">
+              <div class="label" id="barCapLabel">Left</div>
+              <div id="barCapVal" class="v">--:--</div>
+            </div>
+
+            <div class="bar-stats">
+              <div class="bar-stat"><div class="label">Watts</div><span id="barWatts" class="v">--</span><div class="u">W</div></div>
+              <div class="bar-stat"><div class="label" id="barCadLabel">s/min</div><span id="barCad" class="v">--</span><div class="u">&nbsp;</div></div>
+              <div class="bar-stat"><div class="label">HR</div><span id="barHr" class="v">--</span><div class="u">bpm</div></div>
+              <div class="bar-stat"><div class="label">Dist</div><span id="barDist" class="v">0</span><div class="u">m</div></div>
+            </div>
           </div>
-          <div class="bar"><span id="barFill"></span></div>
-          <div id="pctVal" class="pct mono">0%</div>
-
-          <div class="metrics">
-            <div class="cell"><div class="label">Pace</div><span id="paceVal" class="v">--:--</span><div id="paceUnit" class="u">/500m</div></div>
-            <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
-            <div class="cell"><div class="label" id="cadLabel">s/min</div><span id="cadVal" class="v">--</span><div class="u">&nbsp;</div></div>
-            <div class="cell"><div class="label">HR</div><span id="hrVal" class="v">--</span><div class="u">bpm</div></div>
-          </div>
-
-          <div class="metrics secondary">
-            <div class="cell"><div class="label">Proj. finish</div><span id="projVal" class="v">--:--</span><div class="u">round</div></div>
-            <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
-            <div class="cell"><div class="label">Ride time</div><span id="timeVal" class="v">0:00</span><div class="u">&nbsp;</div></div>
-          </div>
-
-          <div id="totals" class="totals">Yards 0 · 0.0 km · 0:00</div>
         </div>
 
-        <div id="trans" class="trans hide">
-          <div class="hdr"><span class="erg title" id="transTitle">Transition</span></div>
-          <div class="label" id="transLabel">Next round in</div>
-          <div id="transClock" class="clock">--</div>
-          <div id="transNext" class="next">→ —</div>
-          <div id="transPrev" class="prev hide"></div>
+        <div id="barTrans" class="bar-trans hide">
+          <img class="logo" src="assets/ergultra-logo.png" alt="ergultra" />
+          <div>
+            <div class="label" id="barTransLabel">Next round in</div>
+            <div id="barTransClock" class="clock">--</div>
+          </div>
+          <div id="barTransNext" class="next">→ —</div>
         </div>
       </div>
     </div>
@@ -153,12 +516,29 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     (function () {
+      var FORMATS = {
+        "youtube-footer": 1,
+        "youtube-lower-third": 1,
+        "youtube-card": 1,
+        "instagram-vertical": 1,
+        "instagram-square": 1,
+        "instagram-panel": 1
+      };
+
       var qs = new URLSearchParams(location.search);
       var supaUrl = qs.get("u") || "";
       var supaKey = qs.get("k") || "";
       var channel = qs.get("c") || "";
       var overrideName = qs.get("name") || "";
-      var pos = qs.get("pos") || "bottom-left";
+      var pos = qs.get("pos") || "center-bottom";
+      var format = qs.get("format") || "";
+      var legacyTheme = qs.get("theme") || "";
+      if (!FORMATS[format]) {
+        if (legacyTheme === "compact") format = "youtube-lower-third";
+        else if (legacyTheme === "minimal") format = "youtube-card";
+        else format = "youtube-footer";
+      }
+
       var scale = parseFloat(qs.get("scale") || "1");
       if (!isFinite(scale) || scale <= 0) scale = 1;
       scale = Math.max(0.3, Math.min(3, scale));
@@ -166,9 +546,11 @@
       if (!isFinite(margin) || margin < 0) margin = 40;
 
       var root = document.getElementById("overlay");
-      root.className = "pos-" + pos;
+      root.className = "pos-" + pos + " fmt-" + format;
       root.style.setProperty("--scale", String(scale));
       root.style.setProperty("--margin", margin + "px");
+
+      var isBar = format === "youtube-footer" || format === "youtube-lower-third";
 
       var el = function (id) { return document.getElementById(id); };
       var latest = null;
@@ -176,14 +558,44 @@
       var lastErg = null;
 
       function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
-      function fmtClock(sec) { if (!isFinite(sec) || sec < 0) sec = 0; return Math.floor(sec / 60) + ":" + pad(sec % 60); }
-      function fmtHMS(sec) { sec = Math.max(0, Math.floor(sec)); var h = Math.floor(sec / 3600); var m = Math.floor((sec % 3600) / 60); var s = sec % 60; return h > 0 ? (h + ":" + pad(m) + ":" + pad(s)) : (m + ":" + pad(s)); }
-      function fmtPace(p) { if (!p || p <= 0 || p >= 9999) return "--:--"; return Math.floor(p / 60) + ":" + pad(p % 60); }
+      function fmtClock(sec) {
+        if (!isFinite(sec) || sec < 0) sec = 0;
+        return Math.floor(sec / 60) + ":" + pad(sec % 60);
+      }
+      function fmtHMS(sec) {
+        sec = Math.max(0, Math.floor(sec));
+        var h = Math.floor(sec / 3600);
+        var m = Math.floor((sec % 3600) / 60);
+        var s = sec % 60;
+        return h > 0 ? (h + ":" + pad(m) + ":" + pad(s)) : (m + ":" + pad(s));
+      }
+      function fmtPace(p) {
+        if (!p || p <= 0 || p >= 9999) return "--:--";
+        return Math.floor(p / 60) + ":" + pad(p % 60);
+      }
       function num(n) { return (n || 0).toLocaleString("en-US"); }
-      function ergName(e) { return e === "skierg" ? "SkiErg" : e === "rowerg" ? "RowErg" : e === "bikeerg" ? "BikeErg" : (e || "—"); }
+      function ergName(e) {
+        return e === "skierg" ? "SkiErg" : e === "rowerg" ? "RowErg" : e === "bikeerg" ? "BikeErg" : (e || "—");
+      }
       function zoneColor(z) {
-        if (z === 1) return "#3B82F6"; if (z === 2) return "#22C55E"; if (z === 3) return "#EAB308";
-        if (z === 4) return "#F97316"; if (z === 5) return "#EF4444"; return "#9CA3AF";
+        if (z === 1) return "#3B82F6";
+        if (z === 2) return "#22C55E";
+        if (z === 3) return "#EAB308";
+        if (z === 4) return "#F97316";
+        if (z === 5) return "#EF4444";
+        return "#9CA3AF";
+      }
+      function isWorkout(d) { return d && d.sessionKind === "workout"; }
+
+      function titleLine(d) {
+        if (isWorkout(d)) {
+          var name = d.workoutName || "Workout";
+          var seg = (d.segmentIndex || 0) + 1;
+          var total = d.segmentCount || 0;
+          var label = d.segmentLabel || "";
+          return name + (total ? (" · " + seg + "/" + total) : "") + (label ? (" · " + label) : "");
+        }
+        return "Round " + (d.round || 0) + " · " + ergName(d.ergType);
       }
 
       function setBadge(d) {
@@ -193,50 +605,143 @@
         if (d.isPaused) { txt = "PAUSED"; on = true; }
         else if (d.simulation) { txt = "SIM"; }
         else if (d.testMode) { txt = "TEST"; }
+        else if (d.isRest) { txt = "REST"; }
         if (!txt) { b.className = "badge hide"; return; }
         b.textContent = txt;
         b.className = "badge" + (on ? " on" : "");
       }
 
+      function flashShell() {
+        var shell = isBar ? el("barShell") : el("card");
+        shell.classList.remove("flash");
+        void shell.offsetWidth;
+        shell.classList.add("flash");
+      }
+
       function renderActive(d, nowMs) {
-        el("waiting").className = "waiting hide";
-        el("trans").className = "trans hide";
-        el("active").className = "";
-
-        var card = el("card");
-        card.className = "card" + (d.isPaused ? " paused" : "");
-
-        el("ergLabel").textContent = "Round " + d.round + " · " + ergName(d.ergType);
-        setBadge(d);
-
         var name = overrideName || d.athleteName || "";
-        var a = el("athlete");
-        if (name) { a.textContent = name; a.className = "athlete"; } else { a.className = "athlete hide"; }
-
-        var remain = d.roundRemainingSeconds || 0;
-        if (d.state === "active" && !d.isPaused) remain -= (nowMs - lastRecvMs) / 1000;
-        el("capClock").textContent = fmtClock(remain);
+        var remainCap = d.roundRemainingSeconds || 0;
+        if (!isWorkout(d) && d.state === "active" && !d.isPaused) {
+          remainCap -= (nowMs - lastRecvMs) / 1000;
+        }
+        var remainSeg = d.remainingSeconds;
+        if (isWorkout(d) && remainSeg != null && d.state === "active" && !d.isPaused) {
+          remainSeg -= (nowMs - lastRecvMs) / 1000;
+          if (remainSeg < 0) remainSeg = 0;
+        }
+        var elapsed = d.elapsedTime || 0;
+        if (d.state === "active" && !d.isPaused) elapsed += (nowMs - lastRecvMs) / 1000;
 
         var dist = d.distance || 0;
         var target = d.targetDistance || 0;
-        el("distVal").textContent = num(dist) + " / " + num(target) + " m";
         var reached = target > 0 && dist >= target;
         var pct = target > 0 ? (reached ? 100 : Math.min(99, Math.floor((dist / target) * 100))) : 0;
+        if (isWorkout(d) && typeof d.segProgress === "number") {
+          pct = Math.max(0, Math.min(100, Math.round(d.segProgress * 100)));
+        }
+
+        var paceStr = fmtPace(d.pace);
+        var paceUnit = d.ergType === "bikeerg" ? "/1000m" : "/500m";
+        var watts = d.watts > 0 ? String(Math.round(d.watts)) : "--";
+        var cadLabel = d.ergType === "bikeerg" ? "RPM" : "s/min";
+        var cad = d.strokeRate > 0 ? String(Math.round(d.strokeRate)) : "--";
+        var hr = d.heartRate > 0 ? String(Math.round(d.heartRate)) : "--";
+        var hrColor = d.heartRate > 0 ? zoneColor(d.hrZone || 0) : "#FFFFFF";
+        var timeStr = fmtHMS(elapsed);
+        var title = titleLine(d);
+
+        if (isBar) {
+          el("barWaiting").className = "bar-waiting hide";
+          el("barTrans").className = "bar-trans hide";
+          el("barActive").className = "";
+          el("barShell").className = "bar-shell" + (d.isPaused ? " paused" : "");
+
+          el("barTitle").textContent = title;
+          el("barSub").textContent = name
+            ? (name + " · " + ergName(d.ergType))
+            : ergName(d.ergType);
+
+          el("barPace").textContent = paceStr;
+          el("barPaceUnit").textContent = paceUnit;
+          el("barTime").textContent = timeStr;
+          el("barTimeLabel").textContent = isWorkout(d) ? "Elapsed" : "Ride time";
+          el("barWatts").textContent = watts;
+          el("barCadLabel").textContent = cadLabel;
+          el("barCad").textContent = cad;
+          var hrEl = el("barHr");
+          hrEl.textContent = hr;
+          hrEl.style.color = hrColor;
+          el("barDist").textContent = num(Math.round(dist));
+
+          var showCap = !isWorkout(d) || (remainSeg != null && isFinite(remainSeg));
+          var capEl = el("barCap");
+          if (showCap) {
+            capEl.className = "bar-cap";
+            if (isWorkout(d)) {
+              el("barCapLabel").textContent = d.isRest ? "Rest" : "Seg left";
+              el("barCapVal").textContent = fmtClock(remainSeg);
+            } else {
+              el("barCapLabel").textContent = "Cap left";
+              el("barCapVal").textContent = fmtClock(remainCap);
+            }
+          } else {
+            capEl.className = "bar-cap hide";
+          }
+          return;
+        }
+
+        // Card layouts
+        el("waiting").className = "waiting hide";
+        el("trans").className = "trans hide";
+        el("active").className = "";
+        el("card").className = "card" + (d.isPaused ? " paused" : "");
+
+        el("ergLabel").textContent = title;
+        setBadge(d);
+        var a = el("athlete");
+        if (name) { a.textContent = name; a.className = "athlete"; }
+        else { a.className = "athlete hide"; }
+
+        var capRow = el("capRow");
+        if (!isWorkout(d)) {
+          capRow.className = "cap-row";
+          el("capLabel").textContent = "Round time left";
+          el("capClock").textContent = fmtClock(remainCap);
+        } else if (remainSeg != null && isFinite(remainSeg)) {
+          capRow.className = "cap-row";
+          el("capLabel").textContent = d.isRest ? "Rest remaining" : "Segment left";
+          el("capClock").textContent = fmtClock(remainSeg);
+        } else {
+          capRow.className = "cap-row hide";
+        }
+
+        el("paceVal").textContent = paceStr;
+        el("paceUnit").textContent = paceUnit;
+        el("timeVal").textContent = timeStr;
+        el("timeLabel").textContent = isWorkout(d) ? "Elapsed" : "Time";
+
+        if (target > 0) {
+          el("distVal").textContent = num(Math.round(dist)) + " / " + num(target) + " m";
+          el("remVal").textContent = reached ? "TARGET" : (num(Math.max(0, target - dist)) + " m left");
+        } else {
+          el("distVal").textContent = num(Math.round(dist)) + " m";
+          el("remVal").textContent = isWorkout(d) && d.segDistRemaining > 0
+            ? (num(Math.round(d.segDistRemaining)) + " m left")
+            : "";
+        }
         el("barFill").style.width = pct + "%";
         el("pctVal").textContent = pct + "%";
-        el("remVal").textContent = reached ? "TARGET" : (num(Math.max(0, target - dist)) + " m left");
 
-        el("paceVal").textContent = fmtPace(d.pace);
-        el("paceUnit").textContent = d.ergType === "bikeerg" ? "/1000m" : "/500m";
-        el("wattsVal").textContent = d.watts > 0 ? String(Math.round(d.watts)) : "--";
-        el("cadLabel").textContent = d.ergType === "bikeerg" ? "RPM" : "s/min";
-        el("cadVal").textContent = d.strokeRate > 0 ? String(Math.round(d.strokeRate)) : "--";
-        var hr = el("hrVal");
-        hr.textContent = d.heartRate > 0 ? String(Math.round(d.heartRate)) : "--";
-        hr.style.color = d.heartRate > 0 ? zoneColor(d.hrZone || 0) : "#FFFFFF";
+        el("wattsVal").textContent = watts;
+        el("cadLabel").textContent = cadLabel;
+        el("cadVal").textContent = cad;
+        var hrCard = el("hrVal");
+        hrCard.textContent = hr;
+        hrCard.style.color = hrColor;
+        el("kcalVal").textContent = d.calories > 0 ? String(Math.round(d.calories)) : "--";
 
         var proj = el("projVal");
-        if (d.projectedFinishSeconds && d.projectedFinishSeconds > 0) {
+        if (!isWorkout(d) && d.projectedFinishSeconds && d.projectedFinishSeconds > 0) {
           proj.textContent = fmtClock(d.projectedFinishSeconds);
           proj.style.color = d.projectedFinishSeconds <= (d.roundDurationSeconds || 1e9) ? "#22C55E" : "#EF4444";
         } else {
@@ -244,28 +749,43 @@
           proj.style.color = "#FFFFFF";
         }
 
-        el("kcalVal").textContent = d.calories > 0 ? String(Math.round(d.calories)) : "--";
-
-        var elapsed = d.elapsedTime || 0;
-        if (d.state === "active" && !d.isPaused) elapsed += (nowMs - lastRecvMs) / 1000;
-        el("timeVal").textContent = fmtHMS(elapsed);
-
-        var km = ((d.totalDistance || 0) / 1000).toFixed(1);
-        el("totals").textContent = "Yards " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+        if (isWorkout(d)) {
+          el("segVal").textContent = ((d.segmentIndex || 0) + 1) + "/" + (d.segmentCount || 0);
+          el("rideVal").textContent = timeStr;
+          el("totals").textContent = (d.workoutName || "Workout") + " · " + ergName(d.ergType);
+          el("secondaryRow").className = "metrics secondary";
+        } else {
+          el("segVal").textContent = "R" + (d.round || 0);
+          el("rideVal").textContent = timeStr;
+          var km = ((d.totalDistance || 0) / 1000).toFixed(1);
+          el("totals").textContent = "Yards " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+          el("secondaryRow").className = "metrics secondary";
+        }
       }
 
       function renderTransition(d, nowMs) {
-        el("waiting").className = "waiting hide";
-        el("active").className = "hide";
-        var t = el("trans");
-
         var secs = (d.transitionSeconds || 0) - (nowMs - lastRecvMs) / 1000;
         if (secs < 0) secs = 0;
         var urgent = secs <= 10;
+        var next = "→ " + ergName(d.nextErg || d.ergType);
+
+        if (isBar) {
+          el("barWaiting").className = "bar-waiting hide";
+          el("barActive").className = "hide";
+          el("barTrans").className = "bar-trans" + (urgent ? " urgent" : "");
+          el("barTransLabel").textContent = urgent ? "Starting soon" : "Next round in";
+          el("barTransClock").textContent = fmtClock(secs);
+          el("barTransNext").textContent = next;
+          return;
+        }
+
+        el("waiting").className = "waiting hide";
+        el("active").className = "hide";
+        var t = el("trans");
         t.className = "trans" + (urgent ? " urgent" : "");
         el("transLabel").textContent = urgent ? "Starting soon" : "Next round in";
         el("transClock").textContent = fmtClock(secs);
-        el("transNext").textContent = "→ " + ergName(d.nextErg || d.ergType);
+        el("transNext").textContent = next;
 
         var p = d.prevRound;
         var pv = el("transPrev");
@@ -279,39 +799,44 @@
         }
       }
 
+      function showWaiting() {
+        if (isBar) {
+          el("barWaiting").className = "bar-waiting";
+          el("barActive").className = "hide";
+          el("barTrans").className = "bar-trans hide";
+        } else {
+          el("waiting").className = "waiting";
+          el("active").className = "hide";
+          el("trans").className = "trans hide";
+        }
+      }
+
       function render() {
         var nowMs = performance.now();
         var d = latest;
         var stale = !d || (nowMs - lastRecvMs > 5000);
-        if (stale) {
-          el("waiting").className = "waiting";
-          el("active").className = "hide";
-          el("trans").className = "trans hide";
-          return;
-        }
+        if (stale) { showWaiting(); return; }
         if (d.state === "transition") renderTransition(d, nowMs);
         else renderActive(d, nowMs);
       }
 
       function onData(payload) {
-        if (payload && lastErg !== null && payload.ergType !== lastErg) {
-          var card = el("card");
-          card.classList.remove("flash");
-          void card.offsetWidth;
-          card.classList.add("flash");
-        }
+        if (payload && lastErg !== null && payload.ergType !== lastErg) flashShell();
         if (payload) lastErg = payload.ergType;
         latest = payload;
         lastRecvMs = performance.now();
       }
 
       if (window.supabase && supaUrl && supaKey && channel) {
-        var sb = window.supabase.createClient(supaUrl, supaKey, { realtime: { params: { eventsPerSecond: 5 } } });
+        var sb = window.supabase.createClient(supaUrl, supaKey, {
+          realtime: { params: { eventsPerSecond: 5 } }
+        });
         var ch = sb.channel("overlay:" + channel, { config: { broadcast: { self: false } } });
         ch.on("broadcast", { event: "data" }, function (msg) { onData(msg.payload); });
         ch.subscribe();
       } else {
         el("waiting").textContent = "Missing u / k / c parameters";
+        el("barWaiting").textContent = "Missing u / k / c parameters";
       }
 
       function loop() { render(); requestAnimationFrame(loop); }
