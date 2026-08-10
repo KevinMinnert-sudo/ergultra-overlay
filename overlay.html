@@ -7,7 +7,8 @@
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
-    Query: u, k, c, pos, scale, margin, name, format
+    Stable URL: u, k, c (required). Layout arrives via Realtime overlayConfig.
+    Optional query fallback: pos, scale, margin, name, format
     format = youtube-footer | youtube-lower-third | youtube-card
              | instagram-vertical | instagram-square | instagram-panel
   -->
@@ -287,7 +288,7 @@
     #stage.on { display: flex; }
 
     .stage-panel {
-      width: min(1100px, 92vw);
+      width: min(1240px, 94vw);
       background: rgba(13, 11, 17, 0.88);
       border: 1px solid var(--border);
       border-radius: 24px;
@@ -319,8 +320,8 @@
 
     .stage-body {
       display: grid;
-      grid-template-columns: 1.1fr 1fr;
-      gap: 28px;
+      grid-template-columns: 1fr 1.35fr;
+      gap: 32px;
       align-items: center;
     }
     .stage-clock-wrap { text-align: center; }
@@ -340,18 +341,43 @@
       background: rgba(24, 20, 37, 0.85);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 16px 18px;
-      min-height: 220px;
+      padding: 18px 20px;
+      min-height: 280px;
     }
     .rounds-board h3 {
       font-family: "Space Grotesk", sans-serif;
       font-size: 14px; font-weight: 700; letter-spacing: 1px;
       text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
     }
+    .last-round-hero {
+      margin-bottom: 14px;
+      padding: 14px 14px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(124, 58, 237, 0.45);
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.18), rgba(24, 20, 37, 0.4));
+    }
+    .last-round-hero .hero-title {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700; font-size: 20px; margin: 4px 0 12px;
+    }
+    .last-round-metrics {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+    }
+    .last-round-metrics .m .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700; font-size: 20px; display: block;
+    }
+    .last-round-metrics .m .u {
+      font-size: 10px; color: var(--muted); letter-spacing: 0.6px;
+      text-transform: uppercase;
+    }
     .rounds-board table {
       width: 100%; border-collapse: collapse;
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums; font-size: 15px;
+      font-variant-numeric: tabular-nums; font-size: 16px;
     }
     .rounds-board th {
       text-align: left; font-family: "DM Sans", sans-serif;
@@ -359,7 +385,7 @@
       color: var(--muted); font-weight: 500; padding-bottom: 8px;
     }
     .rounds-board td {
-      padding: 8px 6px 8px 0; border-top: 1px solid rgba(45, 38, 64, 0.8);
+      padding: 7px 6px 7px 0; border-top: 1px solid rgba(45, 38, 64, 0.8);
       font-weight: 600;
     }
     .rounds-board tr:last-child td { color: var(--fg); }
@@ -508,6 +534,17 @@
         </div>
         <div class="rounds-board">
           <h3>Completed rounds</h3>
+          <div id="lastRoundHero" class="last-round-hero hide">
+            <div class="label">Last round</div>
+            <div class="hero-title" id="lastRoundTitle">—</div>
+            <div class="last-round-metrics">
+              <div class="m"><span id="lastDist" class="v">—</span><div class="u">Dist m</div></div>
+              <div class="m"><span id="lastTime" class="v">—</span><div class="u">Time</div></div>
+              <div class="m"><span id="lastPace" class="v">—</span><div class="u">Pace</div></div>
+              <div class="m"><span id="lastWatts" class="v">—</span><div class="u">Watts</div></div>
+              <div class="m"><span id="lastErg" class="v">—</span><div class="u">Erg</div></div>
+            </div>
+          </div>
           <div id="roundsEmpty" class="rounds-empty">No completed rounds yet</div>
           <table id="roundsTable" class="hide">
             <thead>
@@ -539,6 +576,7 @@
       var supaKey = qs.get("k") || "";
       var channel = qs.get("c") || "";
       var overrideName = qs.get("name") || "";
+      // Query layout is fallback until the first Realtime overlayConfig packet.
       var pos = qs.get("pos") || "center-bottom";
       var format = qs.get("format") || "";
       var legacyTheme = qs.get("theme") || "";
@@ -553,17 +591,45 @@
       scale = Math.max(0.3, Math.min(3, scale));
       var margin = parseInt(qs.get("margin") || "40", 10);
       if (!isFinite(margin) || margin < 0) margin = 40;
+      var liveName = "";
 
       var root = document.getElementById("overlay");
-      root.className = "pos-" + pos + " fmt-" + format;
-      root.style.setProperty("--scale", String(scale));
-      root.style.setProperty("--margin", margin + "px");
-
       var isBar = format === "youtube-footer" || format === "youtube-lower-third";
       var el = function (id) { return document.getElementById(id); };
       var latest = null;
       var lastRecvMs = 0;
       var lastErg = null;
+
+      function applyLayout() {
+        isBar = format === "youtube-footer" || format === "youtube-lower-third";
+        root.className = "pos-" + pos + " fmt-" + format;
+        root.style.setProperty("--scale", String(scale));
+        root.style.setProperty("--margin", margin + "px");
+      }
+      applyLayout();
+
+      function applyOverlayConfig(cfg) {
+        if (!cfg || typeof cfg !== "object") return;
+        if (cfg.format && FORMATS[cfg.format]) format = cfg.format;
+        if (typeof cfg.pos === "string" && cfg.pos) pos = cfg.pos;
+        if (typeof cfg.scale === "number" && isFinite(cfg.scale) && cfg.scale > 0) {
+          scale = Math.max(0.3, Math.min(3, cfg.scale));
+        }
+        if (typeof cfg.margin === "number" && isFinite(cfg.margin) && cfg.margin >= 0) {
+          margin = Math.round(cfg.margin);
+        }
+        if (typeof cfg.athleteName === "string") {
+          liveName = cfg.athleteName.trim();
+        }
+        applyLayout();
+      }
+
+      function isLayoutOnlyPacket(d) {
+        if (!d || d.state !== "idle") return false;
+        if (d.sessionKind) return false;
+        if (d.round != null || d.workoutName) return false;
+        return !!d.overlayConfig;
+      }
 
       function pad(n) { n = Math.floor(n); return (n < 10 ? "0" : "") + n; }
       function fmtClock(sec) {
@@ -659,19 +725,33 @@
 
       function renderRoundsBoard(d) {
         var rounds = d.recentRounds && d.recentRounds.length
-          ? d.recentRounds
+          ? d.recentRounds.slice(-8)
           : (d.prevRound ? [d.prevRound] : []);
         var empty = el("roundsEmpty");
         var table = el("roundsTable");
         var body = el("roundsBody");
+        var hero = el("lastRoundHero");
         body.innerHTML = "";
         if (!rounds.length) {
           empty.className = "rounds-empty";
           table.className = "hide";
+          hero.className = "last-round-hero hide";
+          el("stageTotals").textContent = "Yards 0 · 0.0 km · 0:00 · Ø Pace --:--";
           return;
         }
         empty.className = "rounds-empty hide";
         table.className = "";
+
+        var last = rounds[rounds.length - 1];
+        hero.className = "last-round-hero";
+        el("lastRoundTitle").textContent =
+          "R" + last.roundNumber + " · " + ergName(last.ergType);
+        el("lastDist").textContent = num(Math.round(last.distance || 0));
+        el("lastTime").textContent = fmtHMS(last.timeSeconds || 0);
+        el("lastPace").textContent = fmtPace(last.avgPace);
+        el("lastWatts").textContent = last.avgWatts > 0 ? String(Math.round(last.avgWatts)) : "—";
+        el("lastErg").textContent = ergName(last.ergType);
+
         for (var i = 0; i < rounds.length; i++) {
           var r = rounds[i];
           var tr = document.createElement("tr");
@@ -684,9 +764,29 @@
             "<td>" + (r.avgWatts > 0 ? Math.round(r.avgWatts) : "—") + "</td>";
           body.appendChild(tr);
         }
-        var km = ((d.totalDistance || 0) / 1000).toFixed(1);
+
+        var sumDist = 0;
+        var sumTime = 0;
+        var paceWeighted = 0;
+        var paceWeight = 0;
+        for (var j = 0; j < rounds.length; j++) {
+          sumDist += rounds[j].distance || 0;
+          sumTime += rounds[j].timeSeconds || 0;
+          if (rounds[j].avgPace > 0 && rounds[j].distance > 0) {
+            paceWeighted += rounds[j].avgPace * rounds[j].distance;
+            paceWeight += rounds[j].distance;
+          }
+        }
+        var sessionDist = d.totalDistance > 0 ? d.totalDistance : sumDist;
+        var sessionTime = d.totalTime > 0 ? d.totalTime : sumTime;
+        var avgPace = paceWeight > 0
+          ? paceWeighted / paceWeight
+          : (sessionDist > 0 && sessionTime > 0 ? (sessionTime / sessionDist) * 500 : 0);
+        var km = (sessionDist / 1000).toFixed(1);
         el("stageTotals").textContent =
-          "Yards " + (d.totalRounds || rounds.length) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+          "Yards " + (d.totalRounds || rounds.length) +
+          " · " + km + " km · " + fmtHMS(sessionTime) +
+          " · Ø Pace " + fmtPace(avgPace);
       }
 
       function renderStage(d, nowMs) {
@@ -720,7 +820,7 @@
         el("stage").className = "";
         showChromeActive();
 
-        var name = overrideName || d.athleteName || "";
+        var name = overrideName || d.athleteName || liveName || "";
         var remainCap = d.roundRemainingSeconds || 0;
         if (!isWorkout(d) && d.state === "active" && !d.isPaused) {
           remainCap -= (nowMs - lastRecvMs) / 1000;
@@ -863,8 +963,11 @@
       }
 
       function onData(payload) {
-        if (payload && lastErg !== null && payload.ergType !== lastErg) flashShell();
-        if (payload) lastErg = payload.ergType;
+        if (!payload) return;
+        if (payload.overlayConfig) applyOverlayConfig(payload.overlayConfig);
+        if (isLayoutOnlyPacket(payload)) return;
+        if (lastErg !== null && payload.ergType && payload.ergType !== lastErg) flashShell();
+        if (payload.ergType) lastErg = payload.ergType;
         latest = payload;
         lastRecvMs = performance.now();
       }
@@ -875,6 +978,9 @@
         });
         var ch = sb.channel("overlay:" + channel, { config: { broadcast: { self: false } } });
         ch.on("broadcast", { event: "data" }, function (msg) { onData(msg.payload); });
+        ch.on("broadcast", { event: "config" }, function (msg) {
+          applyOverlayConfig(msg.payload && msg.payload.format ? msg.payload : (msg.payload && msg.payload.overlayConfig) || msg.payload);
+        });
         ch.subscribe();
       } else {
         el("waiting").textContent = "Missing u / k / c parameters";
