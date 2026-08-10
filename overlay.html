@@ -5,15 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ErgUltra Live Overlay</title>
   <!--
-    ErgUltra Live Stream Overlay — standalone page.
+    ErgUltra Live Stream Overlay — TV broadcast grade.
 
-    Query params:
-      u, k, c          = Supabase URL, anon key, channel (user id)
-      pos, scale, margin, name = styling / athlete name
-      format           = youtube-footer | youtube-lower-third | youtube-card
-                        | instagram-vertical | instagram-square | instagram-panel
-
-    OBS Browser Source: paste the full URL from Stream Setup.
+    Query: u, k, c, pos, scale, margin, name, format
+    format = youtube-footer | youtube-lower-third | youtube-card
+             | instagram-vertical | instagram-square | instagram-panel
   -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,7 +17,7 @@
   <style>
     :root {
       --accent: #7C3AED;
-      --bg: #181425;
+      --bg: rgba(13, 11, 17, 0.92);
       --bg-bar: rgba(13, 11, 17, 0.94);
       --fg: #FFFFFF;
       --muted: #9CA3AF;
@@ -38,6 +34,7 @@
     body { font-family: "DM Sans", sans-serif; color: var(--fg); }
     .mono { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
     .title { font-family: "Space Grotesk", sans-serif; }
+    .hide { display: none !important; }
 
     #overlay { position: fixed; inset: 0; pointer-events: none; }
     .anchor { position: fixed; transform: scale(var(--scale)); }
@@ -48,60 +45,60 @@
     .pos-center-bottom .anchor { left: 50%; bottom: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: bottom center; }
     .pos-center-top .anchor { left: 50%; top: var(--margin); transform: translateX(-50%) scale(var(--scale)); transform-origin: top center; }
 
-    /* Full-bleed footer formats pin to bottom edge */
     .fmt-youtube-footer .anchor,
     .fmt-youtube-lower-third .anchor {
-      left: 50%;
-      right: auto;
-      top: auto;
-      bottom: var(--margin);
+      left: 50%; right: auto; top: auto; bottom: var(--margin);
       transform: translateX(-50%) scale(var(--scale));
       transform-origin: bottom center;
     }
 
     .logo {
-      height: 22px;
-      width: auto;
-      display: block;
-      object-fit: contain;
+      height: 22px; width: auto; display: block; object-fit: contain;
+      background: transparent;
     }
     .logo-lg { height: 28px; }
 
     .label {
-      font-size: 10px;
-      color: var(--muted);
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      font-weight: 500;
+      font-size: 10px; color: var(--muted); letter-spacing: 1.2px;
+      text-transform: uppercase; font-weight: 500;
     }
     .badge {
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 1px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--muted);
+      font-size: 11px; font-weight: 500; letter-spacing: 1px;
+      padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted);
     }
     .badge.on { color: var(--fg); border-color: var(--accent); }
-    .badge.hide, .hide { display: none !important; }
+    .badge.hide { display: none !important; }
+
+    .powered {
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.4px;
+    }
+    .powered strong { color: #E5E7EB; font-weight: 600; }
+    .powered .cta { color: var(--fg); }
 
     .waiting {
       font-family: "Space Grotesk", sans-serif;
-      font-weight: 600;
-      font-size: 14px;
-      color: var(--muted);
+      font-weight: 600; font-size: 14px; color: var(--muted);
     }
 
-    /* ── Card shell (youtube-card + instagram-*) ── */
+    /* ── Card shell ── */
     .card {
-      width: 400px;
-      background: rgba(24, 20, 37, 0.94);
+      width: 420px;
+      background: var(--bg);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 16px 18px 18px;
+      padding: 16px 18px 14px;
       box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-      transition: border-color 300ms ease, opacity 200ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--accent);
     }
     .card.flash { animation: flash 600ms ease; }
     @keyframes flash {
@@ -111,276 +108,273 @@
     .card.paused { opacity: 0.75; }
 
     .card-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 10px;
     }
     .card-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .card-meta { min-width: 0; }
     .card-meta .erg {
-      font-family: "Space Grotesk", sans-serif;
-      font-weight: 700;
-      font-size: 14px;
-      letter-spacing: 0.3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 14px; letter-spacing: 0.3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .athlete { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
     .hero-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
       margin: 4px 0 12px;
     }
     .hero-cell .v {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 42px;
-      line-height: 1;
-      display: inline-block;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 44px; line-height: 1; display: inline-block;
       min-width: var(--pace-w);
     }
-    .hero-cell.time .v { min-width: var(--time-w); font-size: 36px; }
+    .hero-cell.time .v { min-width: var(--time-w); font-size: 38px; }
     .hero-cell .u { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
     .cap-row { margin-bottom: 10px; }
     .cap-row .clock {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 28px;
-      line-height: 1;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 28px; line-height: 1;
     }
 
     .dist { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
     .dist .val { font-size: 16px; font-weight: 700; }
     .dist .rem { font-size: 12px; color: var(--muted); }
     .bar {
-      height: 6px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 999px;
-      overflow: hidden;
-      margin: 6px 0 4px;
+      height: 8px; background: rgba(255,255,255,0.08);
+      border-radius: 999px; overflow: hidden; margin: 8px 0 4px;
     }
     .bar > span {
-      display: block;
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      border-radius: 999px;
-      transition: width 300ms ease;
+      display: block; height: 100%; width: 0%;
+      background: linear-gradient(90deg, #5B21B6, var(--accent), #A78BFA);
+      border-radius: 999px; transition: width 300ms ease;
     }
-    .pct { font-size: 12px; color: var(--muted); }
+    .pct-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 13px; color: var(--muted); margin-bottom: 4px;
+    }
+    .pct-row .pct {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 18px; color: var(--fg);
+    }
 
     .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      margin-top: 12px;
-      border-top: 1px solid var(--border);
-      padding-top: 12px;
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+      margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px;
     }
     .cell .v {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 18px;
-      min-width: 3.2ch;
-      display: inline-block;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 18px; min-width: 3.2ch; display: inline-block;
     }
     .cell .u { font-size: 10px; color: var(--muted); }
 
-    .secondary {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-top: 10px;
-    }
     .totals {
-      margin-top: 12px;
-      border-top: 1px solid var(--border);
-      padding-top: 10px;
+      margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px;
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-size: 13px;
-      color: var(--muted);
+      font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted);
     }
 
-    .trans .clock {
-      font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 46px;
-      line-height: 1;
-      margin-top: 6px;
-    }
-    .trans .next {
-      font-family: "Space Grotesk", sans-serif;
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--accent);
-      margin-top: 4px;
-    }
-    .trans .prev { font-size: 12px; color: var(--muted); margin-top: 10px; }
-    .urgent .clock { color: var(--error); }
-
-    /* Instagram: taller premium panel, even larger pace */
     .fmt-instagram-vertical .card,
     .fmt-instagram-square .card {
-      width: 440px;
-      padding: 20px 22px 22px;
-      border-radius: 20px;
+      width: 460px; padding: 20px 22px 16px; border-radius: 20px;
       background: linear-gradient(180deg, rgba(30,26,46,0.96), rgba(13,11,17,0.96));
     }
     .fmt-instagram-vertical .hero-cell .v,
     .fmt-instagram-square .hero-cell .v { font-size: 52px; }
     .fmt-instagram-vertical .hero-cell.time .v,
     .fmt-instagram-square .hero-cell.time .v { font-size: 44px; }
-    .fmt-instagram-panel .card { width: 420px; }
     .fmt-instagram-panel .hero-cell .v { font-size: 48px; }
 
-    /* ── TV bar shell (youtube-footer / lower-third) ── */
+    /* ── TV footer bar ── */
     .bar-shell {
       display: none;
       background: var(--bg-bar);
       border: 1px solid var(--border);
       border-radius: 14px;
       box-shadow: 0 10px 36px rgba(0,0,0,0.5);
-      overflow: hidden;
-      position: relative;
+      overflow: hidden; position: relative;
     }
     .bar-shell::before {
-      content: "";
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 3px;
-      background: var(--accent);
+      content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+      width: 3px; background: var(--accent);
     }
     .fmt-youtube-footer .bar-shell,
     .fmt-youtube-lower-third .bar-shell { display: block; }
     .fmt-youtube-footer .card-shell,
     .fmt-youtube-lower-third .card-shell { display: none; }
 
-    .fmt-youtube-footer .bar-shell {
-      width: min(1840px, calc(100vw - 80px));
-      border-radius: 12px;
-    }
-    .fmt-youtube-lower-third .bar-shell {
-      width: min(1280px, calc(100vw - 160px));
-    }
+    .fmt-youtube-footer .bar-shell { width: min(1840px, calc(100vw - 80px)); border-radius: 12px; }
+    .fmt-youtube-lower-third .bar-shell { width: min(1280px, calc(100vw - 160px)); }
 
     .bar-inner {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 14px 22px 14px 24px;
-      min-height: 92px;
+      display: flex; align-items: center; gap: 18px;
+      padding: 12px 20px 10px 22px; min-height: 96px;
     }
     .bar-brand {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      min-width: 160px;
-      flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 6px;
+      min-width: 160px; flex-shrink: 0;
     }
     .bar-title {
-      font-family: "Space Grotesk", sans-serif;
-      font-weight: 700;
-      font-size: 15px;
-      letter-spacing: 0.3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 220px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 15px; letter-spacing: 0.3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
     }
     .bar-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
 
     .bar-heroes {
-      display: flex;
-      align-items: stretch;
-      gap: 28px;
-      flex: 1;
-      justify-content: center;
-      min-width: 0;
+      display: flex; align-items: stretch; gap: 28px;
+      flex: 1; justify-content: center; min-width: 0;
     }
-    .bar-hero { min-width: 0; }
     .bar-hero .v {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 54px;
-      line-height: 1;
-      display: inline-block;
-      min-width: var(--pace-w);
-      letter-spacing: -1px;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 54px; line-height: 1; display: inline-block;
+      min-width: var(--pace-w); letter-spacing: -1px;
     }
     .bar-hero.time .v { min-width: var(--time-w); font-size: 48px; }
     .bar-hero .u { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-    .bar-stats {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      flex-shrink: 0;
-      border-left: 1px solid var(--border);
-      padding-left: 18px;
-    }
-    .bar-stat .v {
-      font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 22px;
-      line-height: 1.1;
-      min-width: 3.2ch;
-      display: inline-block;
-    }
-    .bar-stat .u { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
     .bar-cap {
-      flex-shrink: 0;
-      border-left: 1px solid var(--border);
-      padding-left: 18px;
-      min-width: 110px;
+      flex-shrink: 0; border-left: 1px solid var(--border);
+      padding-left: 18px; min-width: 110px;
     }
     .bar-cap .v {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 28px;
-      line-height: 1;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 28px; line-height: 1;
     }
 
+    .bar-stats {
+      display: flex; align-items: center; gap: 18px; flex-shrink: 0;
+      border-left: 1px solid var(--border); padding-left: 18px;
+    }
+    .bar-stat .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 22px; line-height: 1.1; min-width: 3.2ch; display: inline-block;
+    }
+    .bar-stat .u { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+    .bar-progress {
+      padding: 0 22px 10px 24px;
+    }
+    .bar-progress .bar { margin: 0; height: 6px; }
+    .bar-progress .pct-row { margin-top: 4px; margin-bottom: 0; }
+    .bar-powered {
+      padding: 0 22px 10px 24px;
+      font-size: 11px; color: var(--muted);
+    }
+    .bar-powered strong { color: #E5E7EB; }
     .bar-shell.paused { opacity: 0.75; }
     .bar-shell.flash { animation: flash 600ms ease; }
-
     .bar-waiting {
       padding: 18px 24px;
-      font-family: "Space Grotesk", sans-serif;
-      font-weight: 600;
-      color: var(--muted);
+      font-family: "Space Grotesk", sans-serif; font-weight: 600; color: var(--muted);
     }
-    .bar-trans {
-      display: flex;
+
+    /* ── Center-stage transition / countdown ── */
+    #stage {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+      padding: 40px;
+    }
+    #stage.on { display: flex; }
+
+    .stage-panel {
+      width: min(1100px, 92vw);
+      background: rgba(13, 11, 17, 0.88);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      padding: 36px 40px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stage-panel::before {
+      content: "";
+      position: absolute; left: 0; top: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .stage-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 18px;
+    }
+    .stage-brand { display: flex; align-items: center; gap: 12px; }
+    .stage-brand .logo { height: 32px; }
+    .stage-kicker {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 18px; letter-spacing: 0.5px;
+    }
+    .stage-next {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 22px; color: var(--accent);
+    }
+
+    .stage-body {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 28px;
       align-items: center;
-      gap: 24px;
-      padding: 14px 22px;
     }
-    .bar-trans .clock {
+    .stage-clock-wrap { text-align: center; }
+    .stage-clock-label {
+      font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .stage-clock {
       font-family: "JetBrains Mono", monospace;
-      font-variant-numeric: tabular-nums;
-      font-weight: 700;
-      font-size: 42px;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: clamp(96px, 14vw, 160px);
+      line-height: 0.95; letter-spacing: -4px;
     }
-    .bar-trans .next {
+    .stage-clock.urgent { color: var(--error); }
+
+    .rounds-board {
+      background: rgba(24, 20, 37, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      min-height: 220px;
+    }
+    .rounds-board h3 {
       font-family: "Space Grotesk", sans-serif;
-      font-weight: 700;
-      font-size: 20px;
-      color: var(--accent);
+      font-size: 14px; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+    }
+    .rounds-board table {
+      width: 100%; border-collapse: collapse;
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-size: 15px;
+    }
+    .rounds-board th {
+      text-align: left; font-family: "DM Sans", sans-serif;
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--muted); font-weight: 500; padding-bottom: 8px;
+    }
+    .rounds-board td {
+      padding: 8px 6px 8px 0; border-top: 1px solid rgba(45, 38, 64, 0.8);
+      font-weight: 600;
+    }
+    .rounds-board tr:last-child td { color: var(--fg); }
+    .rounds-empty { color: var(--muted); font-size: 14px; padding: 24px 0; }
+
+    .stage-foot {
+      margin-top: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 12px; color: var(--muted); font-size: 12px;
+    }
+    .stage-foot .cta { color: var(--fg); font-weight: 600; }
+
+    @media (max-width: 900px) {
+      .stage-body { grid-template-columns: 1fr; }
+      .stage-clock { font-size: 96px; }
     }
   </style>
 </head>
@@ -395,7 +389,7 @@
           <div id="active" class="hide">
             <div class="card-top">
               <div class="card-brand">
-                <img class="logo logo-lg" src="assets/ergultra-logo.png" alt="ergultra" />
+                <img class="logo logo-lg" src="assets/ergultra-logo.svg" alt="ergultra" />
                 <div class="card-meta">
                   <div id="ergLabel" class="erg">—</div>
                   <div id="athlete" class="athlete hide"></div>
@@ -427,7 +421,10 @@
               <span id="remVal" class="rem mono"></span>
             </div>
             <div class="bar"><span id="barFill"></span></div>
-            <div id="pctVal" class="pct mono">0%</div>
+            <div class="pct-row">
+              <span>Round progress</span>
+              <span id="pctVal" class="pct">0%</span>
+            </div>
 
             <div class="metrics">
               <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
@@ -436,38 +433,20 @@
               <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
             </div>
 
-            <div id="secondaryRow" class="metrics secondary">
-              <div class="cell"><div class="label">Proj. finish</div><span id="projVal" class="v">--:--</span><div class="u">round</div></div>
-              <div class="cell"><div class="label">Segment</div><span id="segVal" class="v">--</span><div class="u">&nbsp;</div></div>
-              <div class="cell"><div class="label">Ride</div><span id="rideVal" class="v">0:00</span><div class="u">&nbsp;</div></div>
-            </div>
-
             <div id="totals" class="totals">Yards 0 · 0.0 km · 0:00</div>
-          </div>
-
-          <div id="trans" class="trans hide">
-            <div class="card-top">
-              <div class="card-brand">
-                <img class="logo" src="assets/ergultra-logo.png" alt="ergultra" />
-                <span class="erg title" id="transTitle">Transition</span>
-              </div>
-            </div>
-            <div class="label" id="transLabel">Next round in</div>
-            <div id="transClock" class="clock">--</div>
-            <div id="transNext" class="next">→ —</div>
-            <div id="transPrev" class="prev hide"></div>
+            <div class="powered">Powered by <strong>ErgUltra</strong> · <span class="cta">ergultra.com</span></div>
           </div>
         </div>
       </div>
 
-      <!-- TV broadcast bar -->
+      <!-- TV broadcast bar (active only) -->
       <div id="barShell" class="bar-shell">
         <div id="barWaiting" class="bar-waiting">Waiting for data…</div>
 
         <div id="barActive" class="hide">
           <div class="bar-inner">
             <div class="bar-brand">
-              <img class="logo logo-lg" src="assets/ergultra-logo.png" alt="ergultra" />
+              <img class="logo logo-lg" src="assets/ergultra-logo.svg" alt="ergultra" />
               <div>
                 <div id="barTitle" class="bar-title">—</div>
                 <div id="barSub" class="bar-sub"></div>
@@ -499,16 +478,50 @@
               <div class="bar-stat"><div class="label">Dist</div><span id="barDist" class="v">0</span><div class="u">m</div></div>
             </div>
           </div>
-        </div>
-
-        <div id="barTrans" class="bar-trans hide">
-          <img class="logo" src="assets/ergultra-logo.png" alt="ergultra" />
-          <div>
-            <div class="label" id="barTransLabel">Next round in</div>
-            <div id="barTransClock" class="clock">--</div>
+          <div class="bar-progress">
+            <div class="bar"><span id="barBarFill"></span></div>
+            <div class="pct-row">
+              <span id="barDistLine">0 / 0 m</span>
+              <span id="barPct" class="pct">0%</span>
+            </div>
           </div>
-          <div id="barTransNext" class="next">→ —</div>
+          <div class="bar-powered">Powered by <strong>ErgUltra</strong> · ergultra.com</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center stage for transition / countdown -->
+  <div id="stage">
+    <div class="stage-panel">
+      <div class="stage-head">
+        <div class="stage-brand">
+          <img class="logo" src="assets/ergultra-logo.svg" alt="ergultra" />
+          <div class="stage-kicker" id="stageKicker">Transition</div>
+        </div>
+        <div class="stage-next" id="stageNext">→ —</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-clock-wrap">
+          <div class="stage-clock-label" id="stageClockLabel">Next round in</div>
+          <div class="stage-clock" id="stageClock">--</div>
+        </div>
+        <div class="rounds-board">
+          <h3>Completed rounds</h3>
+          <div id="roundsEmpty" class="rounds-empty">No completed rounds yet</div>
+          <table id="roundsTable" class="hide">
+            <thead>
+              <tr>
+                <th>R</th><th>Erg</th><th>Dist</th><th>Time</th><th>Pace</th><th>W</th>
+              </tr>
+            </thead>
+            <tbody id="roundsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="stage-foot">
+        <span id="stageTotals">Yards 0 · 0.0 km · 0:00</span>
+        <span>Powered by <strong style="color:#E5E7EB">ErgUltra</strong> · <span class="cta">ergultra.com</span></span>
       </div>
     </div>
   </div>
@@ -517,12 +530,8 @@
   <script>
     (function () {
       var FORMATS = {
-        "youtube-footer": 1,
-        "youtube-lower-third": 1,
-        "youtube-card": 1,
-        "instagram-vertical": 1,
-        "instagram-square": 1,
-        "instagram-panel": 1
+        "youtube-footer": 1, "youtube-lower-third": 1, "youtube-card": 1,
+        "instagram-vertical": 1, "instagram-square": 1, "instagram-panel": 1
       };
 
       var qs = new URLSearchParams(location.search);
@@ -551,7 +560,6 @@
       root.style.setProperty("--margin", margin + "px");
 
       var isBar = format === "youtube-footer" || format === "youtube-lower-third";
-
       var el = function (id) { return document.getElementById(id); };
       var latest = null;
       var lastRecvMs = 0;
@@ -578,12 +586,9 @@
         return e === "skierg" ? "SkiErg" : e === "rowerg" ? "RowErg" : e === "bikeerg" ? "BikeErg" : (e || "—");
       }
       function zoneColor(z) {
-        if (z === 1) return "#3B82F6";
-        if (z === 2) return "#22C55E";
-        if (z === 3) return "#EAB308";
-        if (z === 4) return "#F97316";
-        if (z === 5) return "#EF4444";
-        return "#9CA3AF";
+        if (z === 1) return "#3B82F6"; if (z === 2) return "#22C55E";
+        if (z === 3) return "#EAB308"; if (z === 4) return "#F97316";
+        if (z === 5) return "#EF4444"; return "#9CA3AF";
       }
       function isWorkout(d) { return d && d.sessionKind === "workout"; }
 
@@ -596,6 +601,20 @@
           return name + (total ? (" · " + seg + "/" + total) : "") + (label ? (" · " + label) : "");
         }
         return "Round " + (d.round || 0) + " · " + ergName(d.ergType);
+      }
+
+      function progressPct(d) {
+        if (typeof d.roundProgress === "number" && isFinite(d.roundProgress)) {
+          return Math.max(0, Math.min(100, Math.round(d.roundProgress * 100)));
+        }
+        if (isWorkout(d) && typeof d.segProgress === "number") {
+          return Math.max(0, Math.min(100, Math.round(d.segProgress * 100)));
+        }
+        var dist = d.distance || 0;
+        var target = d.targetDistance || 0;
+        if (target <= 0) return 0;
+        if (dist >= target) return 100;
+        return Math.min(99, Math.floor((dist / target) * 100));
       }
 
       function setBadge(d) {
@@ -618,7 +637,89 @@
         shell.classList.add("flash");
       }
 
+      function hideChrome() {
+        el("waiting").className = "waiting hide";
+        el("active").className = "hide";
+        el("barWaiting").className = "bar-waiting hide";
+        el("barActive").className = "hide";
+        if (isBar) el("barShell").style.display = "none";
+        else el("cardShell").style.display = "none";
+      }
+
+      function showChromeActive() {
+        el("stage").className = "";
+        if (isBar) {
+          el("barShell").style.display = "";
+          el("cardShell").style.display = "none";
+        } else {
+          el("cardShell").style.display = "";
+          el("barShell").style.display = "none";
+        }
+      }
+
+      function renderRoundsBoard(d) {
+        var rounds = d.recentRounds && d.recentRounds.length
+          ? d.recentRounds
+          : (d.prevRound ? [d.prevRound] : []);
+        var empty = el("roundsEmpty");
+        var table = el("roundsTable");
+        var body = el("roundsBody");
+        body.innerHTML = "";
+        if (!rounds.length) {
+          empty.className = "rounds-empty";
+          table.className = "hide";
+          return;
+        }
+        empty.className = "rounds-empty hide";
+        table.className = "";
+        for (var i = 0; i < rounds.length; i++) {
+          var r = rounds[i];
+          var tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>R" + r.roundNumber + "</td>" +
+            "<td>" + ergName(r.ergType) + "</td>" +
+            "<td>" + num(Math.round(r.distance || 0)) + "</td>" +
+            "<td>" + fmtHMS(r.timeSeconds || 0) + "</td>" +
+            "<td>" + fmtPace(r.avgPace) + "</td>" +
+            "<td>" + (r.avgWatts > 0 ? Math.round(r.avgWatts) : "—") + "</td>";
+          body.appendChild(tr);
+        }
+        var km = ((d.totalDistance || 0) / 1000).toFixed(1);
+        el("stageTotals").textContent =
+          "Yards " + (d.totalRounds || rounds.length) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+      }
+
+      function renderStage(d, nowMs) {
+        hideChrome();
+        el("stage").className = "on";
+
+        var isTrans = d.state === "transition";
+        var secs = 0;
+        if (isTrans) {
+          secs = (d.transitionSeconds || 0) - (nowMs - lastRecvMs) / 1000;
+        } else if (d.state === "countdown") {
+          // App countdown is typically 10s — use remaining if provided, else transitionSeconds field
+          secs = (d.transitionSeconds != null ? d.transitionSeconds : (d.roundRemainingSeconds || 0));
+          secs -= (nowMs - lastRecvMs) / 1000;
+        }
+        if (secs < 0) secs = 0;
+        var urgent = secs <= 10;
+
+        el("stageKicker").textContent = isTrans ? "Transition" : "Get ready";
+        el("stageClockLabel").textContent = urgent
+          ? (isTrans ? "Starting soon" : "Go in")
+          : (isTrans ? "Next round in" : "Countdown");
+        var clock = el("stageClock");
+        clock.textContent = fmtClock(secs);
+        clock.className = "stage-clock" + (urgent ? " urgent" : "");
+        el("stageNext").textContent = "→ " + ergName(d.nextErg || d.ergType);
+        renderRoundsBoard(d);
+      }
+
       function renderActive(d, nowMs) {
+        el("stage").className = "";
+        showChromeActive();
+
         var name = overrideName || d.athleteName || "";
         var remainCap = d.roundRemainingSeconds || 0;
         if (!isWorkout(d) && d.state === "active" && !d.isPaused) {
@@ -634,12 +735,7 @@
 
         var dist = d.distance || 0;
         var target = d.targetDistance || 0;
-        var reached = target > 0 && dist >= target;
-        var pct = target > 0 ? (reached ? 100 : Math.min(99, Math.floor((dist / target) * 100))) : 0;
-        if (isWorkout(d) && typeof d.segProgress === "number") {
-          pct = Math.max(0, Math.min(100, Math.round(d.segProgress * 100)));
-        }
-
+        var pct = progressPct(d);
         var paceStr = fmtPace(d.pace);
         var paceUnit = d.ergType === "bikeerg" ? "/1000m" : "/500m";
         var watts = d.watts > 0 ? String(Math.round(d.watts)) : "--";
@@ -652,15 +748,12 @@
 
         if (isBar) {
           el("barWaiting").className = "bar-waiting hide";
-          el("barTrans").className = "bar-trans hide";
           el("barActive").className = "";
           el("barShell").className = "bar-shell" + (d.isPaused ? " paused" : "");
-
           el("barTitle").textContent = title;
           el("barSub").textContent = name
             ? (name + " · " + ergName(d.ergType))
             : ergName(d.ergType);
-
           el("barPace").textContent = paceStr;
           el("barPaceUnit").textContent = paceUnit;
           el("barTime").textContent = timeStr;
@@ -672,6 +765,11 @@
           hrEl.textContent = hr;
           hrEl.style.color = hrColor;
           el("barDist").textContent = num(Math.round(dist));
+          el("barBarFill").style.width = pct + "%";
+          el("barPct").textContent = pct + "%";
+          el("barDistLine").textContent = target > 0
+            ? (num(Math.round(dist)) + " / " + num(target) + " m")
+            : (num(Math.round(dist)) + " m");
 
           var showCap = !isWorkout(d) || (remainSeg != null && isFinite(remainSeg));
           var capEl = el("barCap");
@@ -690,12 +788,9 @@
           return;
         }
 
-        // Card layouts
         el("waiting").className = "waiting hide";
-        el("trans").className = "trans hide";
         el("active").className = "";
         el("card").className = "card" + (d.isPaused ? " paused" : "");
-
         el("ergLabel").textContent = title;
         setBadge(d);
         var a = el("athlete");
@@ -722,12 +817,10 @@
 
         if (target > 0) {
           el("distVal").textContent = num(Math.round(dist)) + " / " + num(target) + " m";
-          el("remVal").textContent = reached ? "TARGET" : (num(Math.max(0, target - dist)) + " m left");
+          el("remVal").textContent = dist >= target ? "TARGET" : (num(Math.max(0, target - dist)) + " m left");
         } else {
           el("distVal").textContent = num(Math.round(dist)) + " m";
-          el("remVal").textContent = isWorkout(d) && d.segDistRemaining > 0
-            ? (num(Math.round(d.segDistRemaining)) + " m left")
-            : "";
+          el("remVal").textContent = "";
         }
         el("barFill").style.width = pct + "%";
         el("pctVal").textContent = pct + "%";
@@ -740,74 +833,23 @@
         hrCard.style.color = hrColor;
         el("kcalVal").textContent = d.calories > 0 ? String(Math.round(d.calories)) : "--";
 
-        var proj = el("projVal");
-        if (!isWorkout(d) && d.projectedFinishSeconds && d.projectedFinishSeconds > 0) {
-          proj.textContent = fmtClock(d.projectedFinishSeconds);
-          proj.style.color = d.projectedFinishSeconds <= (d.roundDurationSeconds || 1e9) ? "#22C55E" : "#EF4444";
-        } else {
-          proj.textContent = "--:--";
-          proj.style.color = "#FFFFFF";
-        }
-
         if (isWorkout(d)) {
-          el("segVal").textContent = ((d.segmentIndex || 0) + 1) + "/" + (d.segmentCount || 0);
-          el("rideVal").textContent = timeStr;
           el("totals").textContent = (d.workoutName || "Workout") + " · " + ergName(d.ergType);
-          el("secondaryRow").className = "metrics secondary";
         } else {
-          el("segVal").textContent = "R" + (d.round || 0);
-          el("rideVal").textContent = timeStr;
           var km = ((d.totalDistance || 0) / 1000).toFixed(1);
           el("totals").textContent = "Yards " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
-          el("secondaryRow").className = "metrics secondary";
-        }
-      }
-
-      function renderTransition(d, nowMs) {
-        var secs = (d.transitionSeconds || 0) - (nowMs - lastRecvMs) / 1000;
-        if (secs < 0) secs = 0;
-        var urgent = secs <= 10;
-        var next = "→ " + ergName(d.nextErg || d.ergType);
-
-        if (isBar) {
-          el("barWaiting").className = "bar-waiting hide";
-          el("barActive").className = "hide";
-          el("barTrans").className = "bar-trans" + (urgent ? " urgent" : "");
-          el("barTransLabel").textContent = urgent ? "Starting soon" : "Next round in";
-          el("barTransClock").textContent = fmtClock(secs);
-          el("barTransNext").textContent = next;
-          return;
-        }
-
-        el("waiting").className = "waiting hide";
-        el("active").className = "hide";
-        var t = el("trans");
-        t.className = "trans" + (urgent ? " urgent" : "");
-        el("transLabel").textContent = urgent ? "Starting soon" : "Next round in";
-        el("transClock").textContent = fmtClock(secs);
-        el("transNext").textContent = next;
-
-        var p = d.prevRound;
-        var pv = el("transPrev");
-        if (p) {
-          var line = "Last: R" + p.roundNumber + " " + ergName(p.ergType) + " · " + num(Math.round(p.distance)) + " m · " + fmtHMS(p.timeSeconds) + " · " + fmtPace(p.avgPace);
-          if (p.avgWatts && p.avgWatts > 0) line += " · " + Math.round(p.avgWatts) + " W";
-          pv.textContent = line;
-          pv.className = "prev";
-        } else {
-          pv.className = "prev hide";
         }
       }
 
       function showWaiting() {
+        el("stage").className = "";
+        showChromeActive();
         if (isBar) {
           el("barWaiting").className = "bar-waiting";
           el("barActive").className = "hide";
-          el("barTrans").className = "bar-trans hide";
         } else {
           el("waiting").className = "waiting";
           el("active").className = "hide";
-          el("trans").className = "trans hide";
         }
       }
 
@@ -816,7 +858,7 @@
         var d = latest;
         var stale = !d || (nowMs - lastRecvMs > 5000);
         if (stale) { showWaiting(); return; }
-        if (d.state === "transition") renderTransition(d, nowMs);
+        if (d.state === "transition" || d.state === "countdown") renderStage(d, nowMs);
         else renderActive(d, nowMs);
       }
 
