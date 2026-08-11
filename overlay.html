@@ -604,6 +604,7 @@
       var margin = parseInt(qs.get("margin") || "40", 10);
       if (!isFinite(margin) || margin < 0) margin = 40;
       var liveName = "";
+      var liveEvent = "";
 
       var root = document.getElementById("overlay");
       var isBar = format === "youtube-footer" || format === "youtube-lower-third";
@@ -632,6 +633,9 @@
         }
         if (typeof cfg.athleteName === "string") {
           liveName = cfg.athleteName.trim();
+        }
+        if (typeof cfg.eventName === "string") {
+          liveEvent = cfg.eventName.trim();
         }
         applyLayout();
       }
@@ -741,6 +745,10 @@
 
       function eventLabel(d) {
         if (d && d.eventName) return d.eventName;
+        if (liveEvent) return liveEvent;
+        if (d && d.overlayConfig && d.overlayConfig.eventName) {
+          return d.overlayConfig.eventName;
+        }
         if (d && d.sessionKind === "solo_ultra") return "Concept2 Multi-Erg Backyard Ultra";
         if (d && d.workoutName) return d.workoutName;
         return "";
