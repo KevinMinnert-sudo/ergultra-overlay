@@ -393,9 +393,18 @@
 
     .stage-foot {
       margin-top: 20px;
-      display: flex; justify-content: space-between; align-items: center;
+      display: flex; justify-content: space-between; align-items: flex-end;
       gap: 12px; color: var(--muted); font-size: 12px;
     }
+    .stage-foot-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .stage-identity {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 600; font-size: 14px; color: var(--fg);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: min(720px, 70vw);
+    }
+    .stage-identity .sep { color: var(--muted); font-weight: 500; margin: 0 6px; }
+    .stage-identity .event { color: #C4B5FD; font-weight: 600; }
     .stage-foot .cta { color: var(--fg); font-weight: 600; }
 
     @media (max-width: 900px) {
@@ -459,7 +468,7 @@
               <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
             </div>
 
-            <div id="totals" class="totals">Yards 0 · 0.0 km · 0:00</div>
+            <div id="totals" class="totals">Rounds 0 · 0.0 km · 0:00</div>
             <div class="powered">Powered by <strong>ErgUltra</strong> · <span class="cta">ergultra.com</span></div>
           </div>
         </div>
@@ -557,7 +566,10 @@
         </div>
       </div>
       <div class="stage-foot">
-        <span id="stageTotals">Yards 0 · 0.0 km · 0:00</span>
+        <div class="stage-foot-left">
+          <div id="stageIdentity" class="stage-identity hide"></div>
+          <span id="stageTotals">Rounds 0 · 0.0 km · 0:00</span>
+        </div>
         <span>Powered by <strong style="color:#E5E7EB">ErgUltra</strong> · <span class="cta">ergultra.com</span></span>
       </div>
     </div>
@@ -723,7 +735,48 @@
         }
       }
 
+      function athleteLabel(d) {
+        return overrideName || (d && d.athleteName) || liveName || "";
+      }
+
+      function eventLabel(d) {
+        if (d && d.eventName) return d.eventName;
+        if (d && d.sessionKind === "solo_ultra") return "Concept2 Multi-Erg Backyard Ultra";
+        if (d && d.workoutName) return d.workoutName;
+        return "";
+      }
+
+      function renderStageIdentity(d) {
+        var identity = el("stageIdentity");
+        var name = athleteLabel(d);
+        var event = eventLabel(d);
+        identity.textContent = "";
+        if (!name && !event) {
+          identity.className = "stage-identity hide";
+          return;
+        }
+        identity.className = "stage-identity";
+        if (name) {
+          var nameEl = document.createElement("span");
+          nameEl.textContent = name;
+          identity.appendChild(nameEl);
+        }
+        if (name && event) {
+          var sep = document.createElement("span");
+          sep.className = "sep";
+          sep.textContent = "·";
+          identity.appendChild(sep);
+        }
+        if (event) {
+          var eventEl = document.createElement("span");
+          eventEl.className = "event";
+          eventEl.textContent = event;
+          identity.appendChild(eventEl);
+        }
+      }
+
       function renderRoundsBoard(d) {
+        renderStageIdentity(d);
         var rounds = d.recentRounds && d.recentRounds.length
           ? d.recentRounds.slice(-8)
           : (d.prevRound ? [d.prevRound] : []);
@@ -736,7 +789,7 @@
           empty.className = "rounds-empty";
           table.className = "hide";
           hero.className = "last-round-hero hide";
-          el("stageTotals").textContent = "Yards 0 · 0.0 km · 0:00 · Ø Pace --:--";
+          el("stageTotals").textContent = "Rounds 0 · 0.0 km · 0:00 · Ø Pace --:--";
           return;
         }
         empty.className = "rounds-empty hide";
@@ -784,7 +837,7 @@
           : (sessionDist > 0 && sessionTime > 0 ? (sessionTime / sessionDist) * 500 : 0);
         var km = (sessionDist / 1000).toFixed(1);
         el("stageTotals").textContent =
-          "Yards " + (d.totalRounds || rounds.length) +
+          "Rounds " + (d.totalRounds || rounds.length) +
           " · " + km + " km · " + fmtHMS(sessionTime) +
           " · Ø Pace " + fmtPace(avgPace);
       }
@@ -820,7 +873,7 @@
         el("stage").className = "";
         showChromeActive();
 
-        var name = overrideName || d.athleteName || liveName || "";
+        var name = athleteLabel(d);
         var remainCap = d.roundRemainingSeconds || 0;
         if (!isWorkout(d) && d.state === "active" && !d.isPaused) {
           remainCap -= (nowMs - lastRecvMs) / 1000;
@@ -937,7 +990,15 @@
           el("totals").textContent = (d.workoutName || "Workout") + " · " + ergName(d.ergType);
         } else {
           var km = ((d.totalDistance || 0) / 1000).toFixed(1);
-          el("totals").textContent = "Yards " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+          var identityBits = [];
+          if (name) identityBits.push(name);
+          var ev = eventLabel(d);
+          if (ev) identityBits.push(ev);
+          var stats =
+            "Rounds " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+          el("totals").textContent = identityBits.length
+            ? identityBits.join(" · ") + " · " + stats
+            : stats;
         }
       }
 
