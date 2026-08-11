@@ -115,8 +115,11 @@
     .card-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .card-meta .erg {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 14px; letter-spacing: 0.3px;
+      font-size: 18px; letter-spacing: 0.3px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .card-meta .erg-name {
+      font-size: 22px; color: var(--accent); margin-top: 2px;
     }
     .athlete { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
@@ -221,10 +224,15 @@
     }
     .bar-title {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 15px; letter-spacing: 0.3px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+      font-size: 18px; letter-spacing: 0.3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
     }
-    .bar-sub { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .bar-sub { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .bar-erg {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 26px; color: var(--accent); line-height: 1.1;
+      white-space: nowrap;
+    }
 
     .bar-heroes {
       display: flex; align-items: stretch; gap: 28px;
@@ -313,9 +321,15 @@
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
       font-size: 18px; letter-spacing: 0.5px;
     }
+    .stage-next-block { text-align: right; }
+    .stage-round-num {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 20px; letter-spacing: 0.5px; color: var(--fg);
+      margin-bottom: 4px;
+    }
     .stage-next {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 22px; color: var(--accent);
+      font-size: 36px; color: var(--accent); line-height: 1.1;
     }
 
     .stage-body {
@@ -325,6 +339,17 @@
       align-items: center;
     }
     .stage-clock-wrap { text-align: center; }
+    .stage-round-badge {
+      display: inline-block;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 18px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--fg);
+      border: 1px solid var(--accent);
+      background: rgba(124, 58, 237, 0.18);
+      border-radius: 999px;
+      padding: 6px 14px;
+      margin-bottom: 12px;
+    }
     .stage-clock-label {
       font-size: 13px; letter-spacing: 2px; text-transform: uppercase;
       color: var(--muted); margin-bottom: 8px;
@@ -336,6 +361,12 @@
       line-height: 0.95; letter-spacing: -4px;
     }
     .stage-clock.urgent { color: var(--error); }
+    .stage-erg-hero {
+      margin-top: 14px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: clamp(36px, 5vw, 56px);
+      color: var(--accent); letter-spacing: 0.5px;
+    }
 
     .rounds-board {
       background: rgba(24, 20, 37, 0.85);
@@ -427,6 +458,7 @@
                 <img class="logo logo-lg" src="assets/ergultra-logo.svg" alt="ergultra" />
                 <div class="card-meta">
                   <div id="ergLabel" class="erg">—</div>
+                  <div id="cardErgName" class="erg-name">—</div>
                   <div id="athlete" class="athlete hide"></div>
                 </div>
               </div>
@@ -484,6 +516,7 @@
               <img class="logo logo-lg" src="assets/ergultra-logo.svg" alt="ergultra" />
               <div>
                 <div id="barTitle" class="bar-title">—</div>
+                <div id="barErg" class="bar-erg">—</div>
                 <div id="barSub" class="bar-sub"></div>
               </div>
             </div>
@@ -534,12 +567,17 @@
           <img class="logo" src="assets/ergultra-logo.svg" alt="ergultra" />
           <div class="stage-kicker" id="stageKicker">Transition</div>
         </div>
-        <div class="stage-next" id="stageNext">→ —</div>
+        <div class="stage-next-block">
+          <div class="stage-round-num" id="stageRoundNum">Round —</div>
+          <div class="stage-next" id="stageNext">→ —</div>
+        </div>
       </div>
       <div class="stage-body">
         <div class="stage-clock-wrap">
+          <div class="stage-round-badge" id="stageRoundBadge">Round —</div>
           <div class="stage-clock-label" id="stageClockLabel">Next round in</div>
           <div class="stage-clock" id="stageClock">--</div>
+          <div class="stage-erg-hero" id="stageErgHero">—</div>
         </div>
         <div class="rounds-board">
           <h3>Completed rounds</h3>
@@ -638,6 +676,9 @@
           liveEvent = cfg.eventName.trim();
         }
         applyLayout();
+        // Re-apply shell visibility immediately so format switches mid-session.
+        var stageOn = el("stage").classList.contains("on");
+        if (!stageOn) showChromeActive();
       }
 
       function isLayoutOnlyPacket(d) {
@@ -682,7 +723,7 @@
           var label = d.segmentLabel || "";
           return name + (total ? (" · " + seg + "/" + total) : "") + (label ? (" · " + label) : "");
         }
-        return "Round " + (d.round || 0) + " · " + ergName(d.ergType);
+        return "Round " + (d.round || 0);
       }
 
       function progressPct(d) {
@@ -873,7 +914,12 @@
         var clock = el("stageClock");
         clock.textContent = fmtClock(secs);
         clock.className = "stage-clock" + (urgent ? " urgent" : "");
-        el("stageNext").textContent = "→ " + ergName(d.nextErg || d.ergType);
+        var upcoming = ergName(d.nextErg || d.ergType);
+        var roundTxt = "Round " + (d.round || "—");
+        el("stageRoundNum").textContent = roundTxt;
+        el("stageRoundBadge").textContent = roundTxt;
+        el("stageNext").textContent = "→ " + upcoming;
+        el("stageErgHero").textContent = upcoming;
         renderRoundsBoard(d);
       }
 
@@ -912,9 +958,8 @@
           el("barActive").className = "";
           el("barShell").className = "bar-shell" + (d.isPaused ? " paused" : "");
           el("barTitle").textContent = title;
-          el("barSub").textContent = name
-            ? (name + " · " + ergName(d.ergType))
-            : ergName(d.ergType);
+          el("barErg").textContent = ergName(d.ergType);
+          el("barSub").textContent = name || "";
           el("barPace").textContent = paceStr;
           el("barPaceUnit").textContent = paceUnit;
           el("barTime").textContent = timeStr;
@@ -953,6 +998,7 @@
         el("active").className = "";
         el("card").className = "card" + (d.isPaused ? " paused" : "");
         el("ergLabel").textContent = title;
+        el("cardErgName").textContent = ergName(d.ergType);
         setBadge(d);
         var a = el("athlete");
         if (name) { a.textContent = name; a.className = "athlete"; }
