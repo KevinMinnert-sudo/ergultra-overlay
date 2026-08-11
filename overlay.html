@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
+  <!-- overlay-build: 2026-08-11-erg-rotation-v3 -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
@@ -784,27 +787,31 @@
         return overrideName || (d && d.athleteName) || liveName || "";
       }
 
-      /** Upcoming erg for break/countdown — never skip ahead in the rotation. */
+      /**
+       * Upcoming erg for break/countdown.
+       * Source of truth = last completed round + 1 in ergRotation (or default triple).
+       * Do NOT trust nextErg alone — older app builds sent currentRound+1 and skipped Row.
+       */
       function resolveUpcomingErg(d) {
         if (!d) return "";
-        var claimed = d.nextErg || d.ergType || "";
+        var rotation = (d.ergRotation && d.ergRotation.length)
+          ? d.ergRotation
+          : ["skierg", "rowerg", "bikeerg"];
         var last = d.prevRound ||
           (d.recentRounds && d.recentRounds.length
             ? d.recentRounds[d.recentRounds.length - 1]
             : null);
-        // In transition/countdown the app's ergType is the round about to start.
-        if (d.state === "transition" || d.state === "countdown") {
-          if (d.ergType) claimed = d.ergType;
+        if (last && last.ergType) {
+          var idx = -1;
+          for (var i = 0; i < rotation.length; i++) {
+            if (rotation[i] === last.ergType) { idx = i; break; }
+          }
+          if (idx >= 0) return rotation[(idx + 1) % rotation.length];
         }
-        if (!last || !last.ergType) return claimed;
-        var rotation = ["skierg", "rowerg", "bikeerg"];
-        var idx = rotation.indexOf(last.ergType);
-        if (idx < 0) return claimed;
-        var expected = rotation[(idx + 1) % rotation.length];
-        var skipped = rotation[(idx + 2) % rotation.length];
-        // Classic bug: Ski completed → claimed Bike (skipped Row)
-        if (claimed === skipped) return expected;
-        return claimed || expected;
+        if (typeof d.round === "number" && d.round > 0) {
+          return rotation[(d.round - 1) % rotation.length];
+        }
+        return d.ergType || d.nextErg || "";
       }
 
       function eventLabel(d) {
