@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
-  <!-- overlay-build: 2026-08-11-erg-rotation-v3 -->
+  <!-- overlay-build: 2026-08-11-entertainment-v1 -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
@@ -30,9 +30,16 @@
       --error: #EF4444;
       --scale: 1;
       --margin: 40px;
-      --pace-w: 5.2ch;
-      --time-w: 7.2ch;
+      --pace-w: 5.6ch;
+      --time-w: 7.6ch;
+      --ahead: #22C55E;
+      --behind: #EF4444;
     }
+    .tone-ahead { color: var(--ahead) !important; }
+    .tone-behind { color: var(--behind) !important; }
+    .tone-hold { color: #E5E7EB !important; }
+    .tone-climb { color: #FBBF24 !important; }
+    .tone-surge { color: var(--behind) !important; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { background: transparent; width: 100%; height: 100%; overflow: hidden; }
     body { font-family: "DM Sans", sans-serif; color: var(--fg); }
@@ -63,9 +70,29 @@
     .logo-lg { height: 28px; }
 
     .label {
-      font-size: 10px; color: var(--muted); letter-spacing: 1.2px;
+      font-size: 11px; color: var(--muted); letter-spacing: 1.2px;
       text-transform: uppercase; font-weight: 500;
     }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 13px; letter-spacing: 0.4px;
+      padding: 4px 10px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--fg);
+      background: rgba(124, 58, 237, 0.12);
+      white-space: nowrap;
+    }
+    .chip .chip-k { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: 1px; }
+    .chip .chip-v { color: var(--accent); }
+    .chip.hide { display: none !important; }
+    .story-line {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px; font-weight: 600; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .story-line .hi { color: var(--fg); }
+    .story-line.hide { display: none !important; }
     .badge {
       font-size: 11px; font-weight: 500; letter-spacing: 1px;
       padding: 3px 8px; border-radius: 999px;
@@ -133,22 +160,22 @@
     .hero-cell .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 44px; line-height: 1; display: inline-block;
+      font-size: 50px; line-height: 1; display: inline-block;
       min-width: var(--pace-w);
     }
-    .hero-cell.time .v { min-width: var(--time-w); font-size: 38px; }
-    .hero-cell .u { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .hero-cell.time .v { min-width: var(--time-w); font-size: 44px; }
+    .hero-cell .u { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
     .cap-row { margin-bottom: 10px; }
     .cap-row .clock {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 28px; line-height: 1;
+      font-size: 32px; line-height: 1;
     }
 
     .dist { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-    .dist .val { font-size: 16px; font-weight: 700; }
-    .dist .rem { font-size: 12px; color: var(--muted); }
+    .dist .val { font-size: 18px; font-weight: 700; }
+    .dist .rem { font-size: 13px; color: var(--muted); }
     .bar {
       height: 8px; background: rgba(255,255,255,0.08);
       border-radius: 999px; overflow: hidden; margin: 8px 0 4px;
@@ -165,7 +192,7 @@
     .pct-row .pct {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 18px; color: var(--fg);
+      font-size: 20px; color: var(--fg);
     }
 
     .metrics {
@@ -175,7 +202,7 @@
     .cell .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 18px; min-width: 3.2ch; display: inline-block;
+      font-size: 20px; min-width: 3.2ch; display: inline-block;
     }
     .cell .u { font-size: 10px; color: var(--muted); }
 
@@ -219,23 +246,24 @@
 
     .bar-inner {
       display: flex; align-items: center; gap: 18px;
-      padding: 12px 20px 10px 22px; min-height: 96px;
+      padding: 14px 22px 10px 24px; min-height: 108px;
     }
     .bar-brand {
       display: flex; flex-direction: column; gap: 6px;
-      min-width: 160px; flex-shrink: 0;
+      min-width: 180px; flex-shrink: 0;
     }
     .bar-title {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 18px; letter-spacing: 0.3px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+      font-size: 20px; letter-spacing: 0.3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;
     }
-    .bar-sub { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .bar-sub { font-size: 14px; color: var(--muted); white-space: nowrap; }
     .bar-erg {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 26px; color: var(--accent); line-height: 1.1;
+      font-size: 30px; color: var(--accent); line-height: 1.1;
       white-space: nowrap;
     }
+    .bar-next { margin-top: 2px; }
 
     .bar-heroes {
       display: flex; align-items: stretch; gap: 28px;
@@ -244,20 +272,35 @@
     .bar-hero .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 54px; line-height: 1; display: inline-block;
+      font-size: 62px; line-height: 1; display: inline-block;
       min-width: var(--pace-w); letter-spacing: -1px;
     }
-    .bar-hero.time .v { min-width: var(--time-w); font-size: 48px; }
-    .bar-hero .u { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .bar-hero.time .v { min-width: var(--time-w); font-size: 54px; }
+    .bar-hero .u { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    .bar-pace-story {
+      flex-shrink: 0; border-left: 1px solid var(--border);
+      padding-left: 16px; min-width: 132px;
+    }
+    .bar-pace-story .proj {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 26px; line-height: 1.05;
+    }
+    .bar-pace-story .delta {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 18px; margin-top: 4px; letter-spacing: 0.3px;
+    }
+    .bar-pace-story.hide { display: none !important; }
 
     .bar-cap {
       flex-shrink: 0; border-left: 1px solid var(--border);
-      padding-left: 18px; min-width: 110px;
+      padding-left: 18px; min-width: 118px;
     }
     .bar-cap .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 28px; line-height: 1;
+      font-size: 32px; line-height: 1;
     }
 
     .bar-stats {
@@ -267,18 +310,29 @@
     .bar-stat .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums; font-weight: 700;
-      font-size: 22px; line-height: 1.1; min-width: 3.2ch; display: inline-block;
+      font-size: 26px; line-height: 1.1; min-width: 3.2ch; display: inline-block;
     }
-    .bar-stat .u { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .bar-stat .u { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .bar-hr-chip {
+      display: block; margin-top: 3px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 12px; font-weight: 600; color: var(--muted);
+    }
+    .bar-hr-chip.hide { display: none !important; }
 
     .bar-progress {
-      padding: 0 22px 10px 24px;
+      padding: 0 22px 8px 24px;
     }
-    .bar-progress .bar { margin: 0; height: 6px; }
-    .bar-progress .pct-row { margin-top: 4px; margin-bottom: 0; }
+    .bar-progress .bar { margin: 0; height: 7px; }
+    .bar-progress .pct-row { margin-top: 4px; margin-bottom: 0; font-size: 14px; }
+    .bar-story {
+      padding: 0 22px 6px 24px;
+      display: flex; justify-content: space-between; gap: 16px;
+      align-items: baseline;
+    }
     .bar-powered {
       padding: 0 22px 10px 24px;
-      font-size: 11px; color: var(--muted);
+      font-size: 12px; color: var(--muted);
     }
     .bar-powered strong { color: #E5E7EB; }
     .bar-shell.paused { opacity: 0.75; }
@@ -332,14 +386,18 @@
     }
     .stage-next {
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: 36px; color: var(--accent); line-height: 1.1;
+      font-size: 44px; color: var(--accent); line-height: 1.1;
+    }
+    .stage-next-label {
+      font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 2px; text-align: right;
     }
 
     .stage-body {
       display: grid;
       grid-template-columns: 1fr 1.35fr;
       gap: 32px;
-      align-items: center;
+      align-items: start;
     }
     .stage-clock-wrap { text-align: center; }
     .stage-round-badge {
@@ -367,9 +425,36 @@
     .stage-erg-hero {
       margin-top: 14px;
       font-family: "Space Grotesk", sans-serif; font-weight: 700;
-      font-size: clamp(36px, 5vw, 56px);
+      font-size: clamp(42px, 5.5vw, 64px);
       color: var(--accent); letter-spacing: 0.5px;
     }
+    .stage-buffer-hero {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(34, 197, 94, 0.35);
+      background: rgba(34, 197, 94, 0.08);
+    }
+    .stage-buffer-hero.behind {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .stage-buffer-hero .buf-label {
+      font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 4px;
+    }
+    .stage-buffer-hero .buf-val {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 40px; line-height: 1;
+    }
+    .stage-buffer-hero.hide { display: none !important; }
+    .stage-same-erg {
+      margin-top: 10px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 600;
+      font-size: 16px; color: #C4B5FD;
+    }
+    .stage-same-erg.hide { display: none !important; }
 
     .rounds-board {
       background: rgba(24, 20, 37, 0.85);
@@ -396,17 +481,58 @@
     }
     .last-round-metrics {
       display: grid;
-      grid-template-columns: repeat(5, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 8px;
     }
     .last-round-metrics .m .v {
       font-family: "JetBrains Mono", monospace;
       font-variant-numeric: tabular-nums;
-      font-weight: 700; font-size: 20px; display: block;
+      font-weight: 700; font-size: 22px; display: block;
     }
     .last-round-metrics .m .u {
       font-size: 10px; color: var(--muted); letter-spacing: 0.6px;
       text-transform: uppercase;
+    }
+    .hr-story {
+      margin: 12px 0 14px;
+      padding: 14px 14px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(239, 68, 68, 0.28);
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(24, 20, 37, 0.35));
+    }
+    .hr-story.hide { display: none !important; }
+    .hr-story .hr-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .hr-story .hr-title {
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 13px; letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--muted);
+    }
+    .hr-story .hr-bpm {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 36px; line-height: 1;
+    }
+    .hr-story .hr-rows {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px;
+    }
+    .hr-story .hr-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; font-size: 14px;
+    }
+    .hr-story .hr-row .k { color: var(--muted); }
+    .hr-story .hr-row .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+    }
+    .hr-trend {
+      display: inline-block;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: 12px; letter-spacing: 1px;
+      padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--border);
     }
     .rounds-board table {
       width: 100%; border-collapse: collapse;
@@ -428,7 +554,14 @@
     .stage-foot {
       margin-top: 20px;
       display: flex; justify-content: space-between; align-items: flex-end;
-      gap: 12px; color: var(--muted); font-size: 12px;
+      gap: 12px; color: var(--muted); font-size: 13px;
+    }
+    .stage-ticker {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: 14px; font-weight: 600; color: #E5E7EB;
+      max-width: min(900px, 78vw);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .stage-foot-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
     .stage-identity {
@@ -463,6 +596,7 @@
                   <div id="ergLabel" class="erg">—</div>
                   <div id="cardErgName" class="erg-name">—</div>
                   <div id="athlete" class="athlete hide"></div>
+                  <div id="cardNext" class="chip hide" style="margin-top:6px"><span class="chip-k">NEXT</span><span class="chip-v" id="cardNextVal">—</span></div>
                 </div>
               </div>
               <span id="badge" class="badge hide"></span>
@@ -496,10 +630,13 @@
               <span id="pctVal" class="pct">0%</span>
             </div>
 
+            <div id="cardStory" class="story-line hide" style="margin-top:10px"></div>
+            <div id="cardPaceStory" class="story-line hide" style="margin-top:4px"></div>
+
             <div class="metrics">
               <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
               <div class="cell"><div class="label" id="cadLabel">s/min</div><span id="cadVal" class="v">--</span><div class="u">&nbsp;</div></div>
-              <div class="cell"><div class="label">HR</div><span id="hrVal" class="v">--</span><div class="u">bpm</div></div>
+              <div class="cell"><div class="label">HR</div><span id="hrVal" class="v">--</span><div class="u">bpm</div><div id="cardHrChip" class="bar-hr-chip hide"></div></div>
               <div class="cell"><div class="label">Cals</div><span id="kcalVal" class="v">--</span><div class="u">kcal</div></div>
             </div>
 
@@ -520,6 +657,7 @@
               <div>
                 <div id="barTitle" class="bar-title">—</div>
                 <div id="barErg" class="bar-erg">—</div>
+                <div id="barNext" class="chip bar-next hide"><span class="chip-k">NEXT</span><span class="chip-v" id="barNextVal">—</span></div>
                 <div id="barSub" class="bar-sub"></div>
               </div>
             </div>
@@ -537,6 +675,12 @@
               </div>
             </div>
 
+            <div id="barPaceStory" class="bar-pace-story hide">
+              <div class="label">Proj</div>
+              <div id="barProj" class="proj">--:--</div>
+              <div id="barOnPace" class="delta">—</div>
+            </div>
+
             <div id="barCap" class="bar-cap hide">
               <div class="label" id="barCapLabel">Left</div>
               <div id="barCapVal" class="v">--:--</div>
@@ -545,7 +689,12 @@
             <div class="bar-stats">
               <div class="bar-stat"><div class="label">Watts</div><span id="barWatts" class="v">--</span><div class="u">W</div></div>
               <div class="bar-stat"><div class="label" id="barCadLabel">s/min</div><span id="barCad" class="v">--</span><div class="u">&nbsp;</div></div>
-              <div class="bar-stat"><div class="label">HR</div><span id="barHr" class="v">--</span><div class="u">bpm</div></div>
+              <div class="bar-stat">
+                <div class="label">HR</div>
+                <span id="barHr" class="v">--</span>
+                <div class="u">bpm</div>
+                <div id="barHrChip" class="bar-hr-chip hide"></div>
+              </div>
               <div class="bar-stat"><div class="label">Dist</div><span id="barDist" class="v">0</span><div class="u">m</div></div>
             </div>
           </div>
@@ -555,6 +704,10 @@
               <span id="barDistLine">0 / 0 m</span>
               <span id="barPct" class="pct">0%</span>
             </div>
+          </div>
+          <div class="bar-story">
+            <div id="barSameErg" class="story-line hide"></div>
+            <div id="barIdentity" class="story-line hide"></div>
           </div>
           <div class="bar-powered">Powered by <strong>ErgUltra</strong> · ergultra.com</div>
         </div>
@@ -571,6 +724,7 @@
           <div class="stage-kicker" id="stageKicker">Transition</div>
         </div>
         <div class="stage-next-block">
+          <div class="stage-next-label">Next erg</div>
           <div class="stage-round-num" id="stageRoundNum">Round —</div>
           <div class="stage-next" id="stageNext">→ —</div>
         </div>
@@ -581,6 +735,11 @@
           <div class="stage-clock-label" id="stageClockLabel">Next round in</div>
           <div class="stage-clock" id="stageClock">--</div>
           <div class="stage-erg-hero" id="stageErgHero">—</div>
+          <div id="stageBuffer" class="stage-buffer-hero hide">
+            <div class="buf-label">Last round buffer</div>
+            <div id="stageBufferVal" class="buf-val">+0:00</div>
+          </div>
+          <div id="stageSameErg" class="stage-same-erg hide"></div>
         </div>
         <div class="rounds-board">
           <h3>Completed rounds</h3>
@@ -592,14 +751,30 @@
               <div class="m"><span id="lastTime" class="v">—</span><div class="u">Time</div></div>
               <div class="m"><span id="lastPace" class="v">—</span><div class="u">Pace</div></div>
               <div class="m"><span id="lastWatts" class="v">—</span><div class="u">Watts</div></div>
+              <div class="m"><span id="lastBuf" class="v">—</span><div class="u">Buffer</div></div>
               <div class="m"><span id="lastErg" class="v">—</span><div class="u">Erg</div></div>
+            </div>
+          </div>
+          <div id="hrStory" class="hr-story hide">
+            <div class="hr-head">
+              <div>
+                <div class="hr-title">Last round HR</div>
+                <div id="hrStoryBpm" class="hr-bpm">—</div>
+              </div>
+              <span id="hrTrendChip" class="hr-trend">—</span>
+            </div>
+            <div class="hr-rows">
+              <div class="hr-row"><span class="k">vs Round 1</span><span id="hrVsFirst" class="v">—</span></div>
+              <div class="hr-row"><span class="k">vs previous</span><span id="hrVsPrev" class="v">—</span></div>
+              <div class="hr-row"><span class="k">Max last</span><span id="hrMaxLast" class="v">—</span></div>
+              <div class="hr-row"><span class="k">R1 Ø</span><span id="hrFirstAvg" class="v">—</span></div>
             </div>
           </div>
           <div id="roundsEmpty" class="rounds-empty">No completed rounds yet</div>
           <table id="roundsTable" class="hide">
             <thead>
               <tr>
-                <th>R</th><th>Erg</th><th>Dist</th><th>Time</th><th>Pace</th><th>W</th>
+                <th>R</th><th>Erg</th><th>Dist</th><th>Time</th><th>Pace</th><th>W</th><th>Buf</th>
               </tr>
             </thead>
             <tbody id="roundsBody"></tbody>
@@ -609,7 +784,8 @@
       <div class="stage-foot">
         <div class="stage-foot-left">
           <div id="stageIdentity" class="stage-identity hide"></div>
-          <span id="stageTotals">Rounds 0 · 0.0 km · 0:00</span>
+          <div id="stageTicker" class="stage-ticker">Rounds 0 · 0.0 km · 0:00</div>
+          <span id="stageTotals" class="hide">Rounds 0 · 0.0 km · 0:00</span>
         </div>
         <span>Powered by <strong style="color:#E5E7EB">ErgUltra</strong> · <span class="cta">ergultra.com</span></span>
       </div>
@@ -706,6 +882,57 @@
       function fmtPace(p) {
         if (!p || p <= 0 || p >= 9999) return "--:--";
         return Math.floor(p / 60) + ":" + pad(p % 60);
+      }
+      function fmtSignedClock(sec) {
+        if (sec == null || !isFinite(sec)) return "—";
+        var sign = sec < 0 ? "−" : "+";
+        var abs = Math.abs(Math.round(sec));
+        return sign + Math.floor(abs / 60) + ":" + pad(abs % 60);
+      }
+      function fmtSignedBpm(delta) {
+        if (delta == null || !isFinite(delta)) return "—";
+        var sign = delta > 0 ? "+" : (delta < 0 ? "−" : "");
+        return sign + Math.abs(Math.round(delta)) + " bpm";
+      }
+      function fmtPaceDelta(delta) {
+        if (delta == null || !isFinite(delta)) return "";
+        // negative = faster
+        var sign = delta < 0 ? "−" : "+";
+        var abs = Math.abs(delta);
+        var txt = abs >= 10 ? String(Math.round(abs)) : abs.toFixed(1);
+        return sign + txt + "s";
+      }
+      function fmtWattsDelta(delta) {
+        if (delta == null || !isFinite(delta)) return "";
+        var sign = delta > 0 ? "+" : (delta < 0 ? "−" : "");
+        return sign + Math.abs(Math.round(delta)) + "W";
+      }
+      function hrTrendLabel(trend) {
+        if (trend === "surge") return "HR SURGE";
+        if (trend === "climbing") return "HR CLIMBING";
+        if (trend === "holding") return "HR HOLDING";
+        return "";
+      }
+      function hrTrendClass(trend) {
+        if (trend === "surge") return "hr-trend tone-surge";
+        if (trend === "climbing") return "hr-trend tone-climb";
+        if (trend === "holding") return "hr-trend tone-hold";
+        return "hr-trend";
+      }
+      function resolveNextErgActive(d) {
+        if (!d || isWorkout(d)) return "";
+        if (d.nextErg) return d.nextErg;
+        var rotation = (d.ergRotation && d.ergRotation.length)
+          ? d.ergRotation
+          : ["skierg", "rowerg", "bikeerg"];
+        if (d.ergType) {
+          var idx = -1;
+          for (var i = 0; i < rotation.length; i++) {
+            if (rotation[i] === d.ergType) { idx = i; break; }
+          }
+          if (idx >= 0) return rotation[(idx + 1) % rotation.length];
+        }
+        return "";
       }
       function num(n) { return (n || 0).toLocaleString("en-US"); }
       function ergName(e) {
@@ -854,6 +1081,39 @@
         }
       }
 
+      function renderHrStory(d) {
+        var panel = el("hrStory");
+        var avg = d.prevRoundAvgHr || (d.prevRound && d.prevRound.avgHeartRate) || 0;
+        if (!(avg > 0)) {
+          panel.className = "hr-story hide";
+          return;
+        }
+        panel.className = "hr-story";
+        el("hrStoryBpm").textContent = Math.round(avg) + " bpm";
+        var trend = d.hrTrend || "";
+        var chip = el("hrTrendChip");
+        var label = hrTrendLabel(trend);
+        if (label) {
+          chip.textContent = label;
+          chip.className = hrTrendClass(trend);
+        } else {
+          chip.textContent = "";
+          chip.className = "hr-trend hide";
+        }
+        el("hrVsFirst").textContent = fmtSignedBpm(d.hrDeltaVsFirstRound);
+        el("hrVsFirst").className = "v" +
+          (d.hrDeltaVsFirstRound > 0 ? " tone-behind" : (d.hrDeltaVsFirstRound < 0 ? " tone-ahead" : ""));
+        el("hrVsPrev").textContent = fmtSignedBpm(d.hrDeltaVsPrevRound);
+        el("hrVsPrev").className = "v" +
+          (d.hrDeltaVsPrevRound > 0 ? " tone-climb" : "");
+        el("hrMaxLast").textContent =
+          d.prevRoundMaxHr > 0 ? String(Math.round(d.prevRoundMaxHr)) :
+          (d.prevRound && d.prevRound.maxHeartRate > 0
+            ? String(Math.round(d.prevRound.maxHeartRate)) : "—");
+        el("hrFirstAvg").textContent =
+          d.firstRoundAvgHr > 0 ? String(Math.round(d.firstRoundAvgHr)) : "—";
+      }
+
       function renderRoundsBoard(d) {
         renderStageIdentity(d);
         var rounds = d.recentRounds && d.recentRounds.length
@@ -868,7 +1128,9 @@
           empty.className = "rounds-empty";
           table.className = "hide";
           hero.className = "last-round-hero hide";
-          el("stageTotals").textContent = "Rounds 0 · 0.0 km · 0:00 · Ø Pace --:--";
+          el("hrStory").className = "hr-story hide";
+          el("stageTicker").textContent = "Rounds 0 · 0.0 km · 0:00 · Ø Pace --:--";
+          el("stageTotals").textContent = el("stageTicker").textContent;
           return;
         }
         empty.className = "rounds-empty hide";
@@ -882,10 +1144,17 @@
         el("lastTime").textContent = fmtHMS(last.timeSeconds || 0);
         el("lastPace").textContent = fmtPace(last.avgPace);
         el("lastWatts").textContent = last.avgWatts > 0 ? String(Math.round(last.avgWatts)) : "—";
+        var lastBuf = (typeof last.timeBuffer === "number")
+          ? last.timeBuffer
+          : (typeof d.lastRoundBuffer === "number" ? d.lastRoundBuffer : null);
+        el("lastBuf").textContent = lastBuf != null ? fmtSignedClock(lastBuf) : "—";
+        el("lastBuf").className = "v" +
+          (lastBuf != null && lastBuf < 0 ? " tone-behind" : (lastBuf != null && lastBuf > 0 ? " tone-ahead" : ""));
         el("lastErg").textContent = ergName(last.ergType);
 
         for (var i = 0; i < rounds.length; i++) {
           var r = rounds[i];
+          var bufCell = (typeof r.timeBuffer === "number") ? fmtSignedClock(r.timeBuffer) : "—";
           var tr = document.createElement("tr");
           tr.innerHTML =
             "<td>R" + r.roundNumber + "</td>" +
@@ -893,9 +1162,12 @@
             "<td>" + num(Math.round(r.distance || 0)) + "</td>" +
             "<td>" + fmtHMS(r.timeSeconds || 0) + "</td>" +
             "<td>" + fmtPace(r.avgPace) + "</td>" +
-            "<td>" + (r.avgWatts > 0 ? Math.round(r.avgWatts) : "—") + "</td>";
+            "<td>" + (r.avgWatts > 0 ? Math.round(r.avgWatts) : "—") + "</td>" +
+            "<td>" + bufCell + "</td>";
           body.appendChild(tr);
         }
+
+        renderHrStory(d);
 
         var sumDist = 0;
         var sumTime = 0;
@@ -915,10 +1187,27 @@
           ? paceWeighted / paceWeight
           : (sessionDist > 0 && sessionTime > 0 ? (sessionTime / sessionDist) * 500 : 0);
         var km = (sessionDist / 1000).toFixed(1);
-        el("stageTotals").textContent =
-          "Rounds " + (d.totalRounds || rounds.length) +
-          " · " + km + " km · " + fmtHMS(sessionTime) +
-          " · Ø Pace " + fmtPace(avgPace);
+        var tickerBits = [
+          "Rounds " + (d.totalRounds || rounds.length),
+          km + " km",
+          fmtHMS(sessionTime),
+          "Ø Pace " + fmtPace(avgPace)
+        ];
+        if (typeof d.totalBufferSeconds === "number") {
+          tickerBits.push(fmtSignedClock(d.totalBufferSeconds) + " buffer");
+        }
+        if (typeof d.hrDeltaVsFirstRound === "number") {
+          tickerBits.push("HR " + fmtSignedBpm(d.hrDeltaVsFirstRound) + " vs R1");
+        }
+        if (d.bestRoundSameErg && d.bestPaceSameErg) {
+          tickerBits.push(
+            "Best " + ergName(resolveUpcomingErg(d) || last.ergType) +
+            " R" + d.bestRoundSameErg + " " + fmtPace(d.bestPaceSameErg)
+          );
+        }
+        var ticker = tickerBits.join(" · ");
+        el("stageTicker").textContent = ticker;
+        el("stageTotals").textContent = ticker;
       }
 
       function renderStage(d, nowMs) {
@@ -953,7 +1242,74 @@
         el("stageRoundBadge").textContent = roundTxt;
         el("stageNext").textContent = "→ " + upcoming;
         el("stageErgHero").textContent = upcoming;
+
+        var buf = typeof d.lastRoundBuffer === "number"
+          ? d.lastRoundBuffer
+          : (d.prevRound && typeof d.prevRound.timeBuffer === "number"
+            ? d.prevRound.timeBuffer : null);
+        var bufEl = el("stageBuffer");
+        if (buf != null && isTrans) {
+          bufEl.className = "stage-buffer-hero" + (buf < 0 ? " behind" : "");
+          el("stageBufferVal").textContent = fmtSignedClock(buf);
+          el("stageBufferVal").className = "buf-val" +
+            (buf < 0 ? " tone-behind" : " tone-ahead");
+        } else {
+          bufEl.className = "stage-buffer-hero hide";
+        }
+
+        var sameEl = el("stageSameErg");
+        var sameCount = 0;
+        if (d.recentRounds && upcomingId) {
+          for (var si = 0; si < d.recentRounds.length; si++) {
+            if (d.recentRounds[si].ergType === upcomingId) sameCount++;
+          }
+        }
+        if (sameCount > 0 && d.bestPaceSameErg) {
+          sameEl.className = "stage-same-erg";
+          sameEl.textContent =
+            (sameCount + 1) + ". same " + ergName(upcomingId) +
+            " · best pace " + fmtPace(d.bestPaceSameErg) +
+            (d.bestRoundSameErg ? (" (R" + d.bestRoundSameErg + ")") : "");
+        } else if (d.sameErgPrev) {
+          sameEl.className = "stage-same-erg";
+          sameEl.textContent =
+            "vs last " + ergName(d.sameErgPrev.ergType) +
+            " R" + d.sameErgPrev.roundNumber +
+            (d.sameErgPrev.avgPace ? (" · " + fmtPace(d.sameErgPrev.avgPace)) : "");
+        } else {
+          sameEl.className = "stage-same-erg hide";
+        }
+
         renderRoundsBoard(d);
+      }
+
+      function fillSameErgStory(d) {
+        if (isWorkout(d) || !d.sameErgPrev) return "";
+        var bits = [
+          "vs R" + d.sameErgPrev.roundNumber + " " + ergName(d.sameErgPrev.ergType)
+        ];
+        var pd = fmtPaceDelta(d.paceDeltaToSameErg);
+        if (pd) bits.push(pd);
+        var wd = fmtWattsDelta(d.wattsDeltaToSameErg);
+        if (wd) bits.push(wd);
+        return bits.join(" · ");
+      }
+
+      function fillOnPace(d) {
+        if (isWorkout(d)) return null;
+        if (d.projectedFinishSeconds == null || !isFinite(d.projectedFinishSeconds)) return null;
+        var delta = d.projectedDeltaToCap;
+        if (delta == null && d.roundDurationSeconds) {
+          delta = d.projectedFinishSeconds - d.roundDurationSeconds;
+        }
+        var label = "ON PACE";
+        var cls = "delta tone-hold";
+        if (delta != null && isFinite(delta)) {
+          if (delta <= -5) { label = "AHEAD " + fmtClock(Math.abs(delta)); cls = "delta tone-ahead"; }
+          else if (delta >= 5) { label = "BEHIND " + fmtClock(delta); cls = "delta tone-behind"; }
+          else { label = "ON PACE"; }
+        }
+        return { proj: fmtHMS(d.projectedFinishSeconds), label: label, cls: cls };
       }
 
       function renderActive(d, nowMs) {
@@ -985,6 +1341,13 @@
         var hrColor = d.heartRate > 0 ? zoneColor(d.hrZone || 0) : "#FFFFFF";
         var timeStr = fmtHMS(elapsed);
         var title = titleLine(d);
+        var nextId = resolveNextErgActive(d);
+        var sameStory = fillSameErgStory(d);
+        var onPace = fillOnPace(d);
+        var hrLiveChip = "";
+        if (!isWorkout(d) && d.heartRate > 0 && typeof d.hrDeltaVsFirstLive === "number") {
+          hrLiveChip = fmtSignedBpm(d.hrDeltaVsFirstLive) + " vs R1";
+        }
 
         if (isBar) {
           el("barWaiting").className = "bar-waiting hide";
@@ -992,6 +1355,13 @@
           el("barShell").className = "bar-shell" + (d.isPaused ? " paused" : "");
           el("barTitle").textContent = title;
           el("barErg").textContent = ergName(d.ergType);
+          var barNext = el("barNext");
+          if (nextId && !isWorkout(d)) {
+            barNext.className = "chip bar-next";
+            el("barNextVal").textContent = "→ " + ergName(nextId);
+          } else {
+            barNext.className = "chip bar-next hide";
+          }
           el("barSub").textContent = name || "";
           el("barPace").textContent = paceStr;
           el("barPaceUnit").textContent = paceUnit;
@@ -1003,12 +1373,30 @@
           var hrEl = el("barHr");
           hrEl.textContent = hr;
           hrEl.style.color = hrColor;
+          var barHrChip = el("barHrChip");
+          if (hrLiveChip) {
+            barHrChip.textContent = hrLiveChip;
+            barHrChip.className = "bar-hr-chip" +
+              (d.hrDeltaVsFirstLive > 0 ? " tone-climb" : (d.hrDeltaVsFirstLive < 0 ? " tone-ahead" : ""));
+          } else {
+            barHrChip.className = "bar-hr-chip hide";
+          }
           el("barDist").textContent = num(Math.round(dist));
           el("barBarFill").style.width = pct + "%";
           el("barPct").textContent = pct + "%";
           el("barDistLine").textContent = target > 0
             ? (num(Math.round(dist)) + " / " + num(target) + " m")
             : (num(Math.round(dist)) + " m");
+
+          var paceStory = el("barPaceStory");
+          if (onPace) {
+            paceStory.className = "bar-pace-story";
+            el("barProj").textContent = onPace.proj;
+            el("barOnPace").textContent = onPace.label;
+            el("barOnPace").className = onPace.cls;
+          } else {
+            paceStory.className = "bar-pace-story hide";
+          }
 
           var showCap = !isWorkout(d) || (remainSeg != null && isFinite(remainSeg));
           var capEl = el("barCap");
@@ -1024,6 +1412,25 @@
           } else {
             capEl.className = "bar-cap hide";
           }
+
+          var sameEl = el("barSameErg");
+          if (sameStory) {
+            sameEl.textContent = sameStory;
+            sameEl.className = "story-line";
+          } else {
+            sameEl.className = "story-line hide";
+          }
+          var idEl = el("barIdentity");
+          var idBits = [];
+          if (name) idBits.push(name);
+          var evBar = eventLabel(d);
+          if (evBar) idBits.push(evBar);
+          if (idBits.length) {
+            idEl.textContent = idBits.join(" · ");
+            idEl.className = "story-line";
+          } else {
+            idEl.className = "story-line hide";
+          }
           return;
         }
 
@@ -1036,6 +1443,13 @@
         var a = el("athlete");
         if (name) { a.textContent = name; a.className = "athlete"; }
         else { a.className = "athlete hide"; }
+        var cardNext = el("cardNext");
+        if (nextId && !isWorkout(d)) {
+          cardNext.className = "chip";
+          el("cardNextVal").textContent = "→ " + ergName(nextId);
+        } else {
+          cardNext.className = "chip hide";
+        }
 
         var capRow = el("capRow");
         if (!isWorkout(d)) {
@@ -1071,7 +1485,30 @@
         var hrCard = el("hrVal");
         hrCard.textContent = hr;
         hrCard.style.color = hrColor;
+        var cardHrChip = el("cardHrChip");
+        if (hrLiveChip) {
+          cardHrChip.textContent = hrLiveChip;
+          cardHrChip.className = "bar-hr-chip" +
+            (d.hrDeltaVsFirstLive > 0 ? " tone-climb" : (d.hrDeltaVsFirstLive < 0 ? " tone-ahead" : ""));
+        } else {
+          cardHrChip.className = "bar-hr-chip hide";
+        }
         el("kcalVal").textContent = d.calories > 0 ? String(Math.round(d.calories)) : "--";
+
+        var cardStory = el("cardStory");
+        if (sameStory) {
+          cardStory.textContent = sameStory;
+          cardStory.className = "story-line";
+        } else {
+          cardStory.className = "story-line hide";
+        }
+        var cardPace = el("cardPaceStory");
+        if (onPace) {
+          cardPace.textContent = "PROJ " + onPace.proj + " · " + onPace.label;
+          cardPace.className = "story-line hi";
+        } else {
+          cardPace.className = "story-line hide";
+        }
 
         if (isWorkout(d)) {
           el("totals").textContent = (d.workoutName || "Workout") + " · " + ergName(d.ergType);
@@ -1083,6 +1520,9 @@
           if (ev) identityBits.push(ev);
           var stats =
             "Rounds " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+          if (typeof d.totalBufferSeconds === "number") {
+            stats += " · " + fmtSignedClock(d.totalBufferSeconds) + " buf";
+          }
           el("totals").textContent = identityBits.length
             ? identityBits.join(" · ") + " · " + stats
             : stats;
