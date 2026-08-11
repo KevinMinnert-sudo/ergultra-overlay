@@ -784,6 +784,29 @@
         return overrideName || (d && d.athleteName) || liveName || "";
       }
 
+      /** Upcoming erg for break/countdown — never skip ahead in the rotation. */
+      function resolveUpcomingErg(d) {
+        if (!d) return "";
+        var claimed = d.nextErg || d.ergType || "";
+        var last = d.prevRound ||
+          (d.recentRounds && d.recentRounds.length
+            ? d.recentRounds[d.recentRounds.length - 1]
+            : null);
+        // In transition/countdown the app's ergType is the round about to start.
+        if (d.state === "transition" || d.state === "countdown") {
+          if (d.ergType) claimed = d.ergType;
+        }
+        if (!last || !last.ergType) return claimed;
+        var rotation = ["skierg", "rowerg", "bikeerg"];
+        var idx = rotation.indexOf(last.ergType);
+        if (idx < 0) return claimed;
+        var expected = rotation[(idx + 1) % rotation.length];
+        var skipped = rotation[(idx + 2) % rotation.length];
+        // Classic bug: Ski completed → claimed Bike (skipped Row)
+        if (claimed === skipped) return expected;
+        return claimed || expected;
+      }
+
       function eventLabel(d) {
         if (d && d.eventName) return d.eventName;
         if (liveEvent) return liveEvent;
@@ -914,7 +937,10 @@
         var clock = el("stageClock");
         clock.textContent = fmtClock(secs);
         clock.className = "stage-clock" + (urgent ? " urgent" : "");
-        var upcoming = ergName(d.nextErg || d.ergType);
+        // Prefer ergType over nextErg in breaks: older app builds wrongly sent
+        // nextErg = currentRound+1 (Ski→Bike). ergType is already the upcoming erg.
+        var upcomingId = resolveUpcomingErg(d);
+        var upcoming = ergName(upcomingId);
         var roundTxt = "Round " + (d.round || "—");
         el("stageRoundNum").textContent = roundTxt;
         el("stageRoundBadge").textContent = roundTxt;
