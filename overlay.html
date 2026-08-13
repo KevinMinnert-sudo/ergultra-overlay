@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
-  <!-- overlay-build: 2026-08-13-entertainment-v1-logo -->
+  <!-- overlay-build: 2026-08-13-entertainment-v2-session -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
@@ -320,6 +320,44 @@
     }
     .bar-hr-chip.hide { display: none !important; }
 
+    .bar-session {
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      padding-left: 18px;
+      min-width: 168px;
+      max-width: 210px;
+    }
+    .bar-session.hide { display: none !important; }
+    .bar-session .total-label {
+      font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 2px;
+    }
+    .bar-session .total-val {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      font-size: 34px; line-height: 1; letter-spacing: -0.5px;
+      min-width: 7.5ch; display: inline-block;
+    }
+    .bar-session .erg-kms {
+      margin-top: 8px;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .bar-session .erg-km-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; font-size: 13px;
+    }
+    .bar-session .erg-km-row .k {
+      font-family: "Space Grotesk", sans-serif; font-weight: 600;
+      color: var(--muted); letter-spacing: 0.3px;
+    }
+    .bar-session .erg-km-row .v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums; font-weight: 700;
+      color: var(--fg); min-width: 5.5ch; text-align: right;
+    }
+    .bar-session .erg-km-row.active .k { color: var(--accent); }
+    .bar-session .erg-km-row.active .v { color: #E9D5FF; }
+
     .bar-progress {
       padding: 0 22px 8px 24px;
     }
@@ -428,6 +466,27 @@
       font-size: clamp(42px, 5.5vw, 64px);
       color: var(--accent); letter-spacing: 0.5px;
     }
+    .stage-start-hero {
+      margin-top: 8px;
+      font-family: "Space Grotesk", sans-serif; font-weight: 700;
+      font-size: clamp(56px, 8vw, 96px);
+      letter-spacing: 2px; text-transform: uppercase;
+      line-height: 0.95;
+    }
+    .stage-start-hero.sit { color: #FBBF24; }
+    .stage-start-hero.attention { color: #F97316; animation: pulseStart 0.9s ease-in-out infinite; }
+    .stage-start-hero.row { color: #22C55E; }
+    .stage-start-hero.false { color: var(--error); }
+    .stage-start-hero.hide { display: none !important; }
+    @keyframes pulseStart {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.82; transform: scale(1.03); }
+    }
+    .stage-clock.hide { display: none !important; }
+    .stage-panel.start-clean .rounds-board { opacity: 0.55; }
+    .stage-panel.start-clean .last-round-hero,
+    .stage-panel.start-clean .hr-story,
+    .stage-panel.start-clean #roundsTable { display: none !important; }
     .stage-buffer-hero {
       margin-top: 16px;
       padding: 12px 16px;
@@ -632,6 +691,7 @@
 
             <div id="cardStory" class="story-line hide" style="margin-top:10px"></div>
             <div id="cardPaceStory" class="story-line hide" style="margin-top:4px"></div>
+            <div id="cardSessionLine" class="story-line hide" style="margin-top:6px"></div>
 
             <div class="metrics">
               <div class="cell"><div class="label">Watts</div><span id="wattsVal" class="v">--</span><div class="u">W</div></div>
@@ -697,6 +757,16 @@
               </div>
               <div class="bar-stat"><div class="label">Dist</div><span id="barDist" class="v">0</span><div class="u">m</div></div>
             </div>
+
+            <div id="barSession" class="bar-session hide">
+              <div class="total-label">Total time</div>
+              <div id="barSessionTotal" class="total-val">0:00</div>
+              <div class="erg-kms">
+                <div id="barKmSki" class="erg-km-row"><span class="k">Ski</span><span class="v">0.0</span></div>
+                <div id="barKmRow" class="erg-km-row"><span class="k">Row</span><span class="v">0.0</span></div>
+                <div id="barKmBike" class="erg-km-row"><span class="k">Bike</span><span class="v">0.0</span></div>
+              </div>
+            </div>
           </div>
           <div class="bar-progress">
             <div class="bar"><span id="barBarFill"></span></div>
@@ -734,6 +804,7 @@
           <div class="stage-round-badge" id="stageRoundBadge">Round —</div>
           <div class="stage-clock-label" id="stageClockLabel">Next round in</div>
           <div class="stage-clock" id="stageClock">--</div>
+          <div id="stageStartHero" class="stage-start-hero hide">SIT READY</div>
           <div class="stage-erg-hero" id="stageErgHero">—</div>
           <div id="stageBuffer" class="stage-buffer-hero hide">
             <div class="buf-label">Last round buffer</div>
@@ -933,6 +1004,65 @@
           if (idx >= 0) return rotation[(idx + 1) % rotation.length];
         }
         return "";
+      }
+
+      function kmFromMeters(m) {
+        var n = (m || 0) / 1000;
+        return n.toFixed(1);
+      }
+
+      function raceStartCopy(phase) {
+        if (!phase) return null;
+        if (phase === "PREPARING") return { title: "GET READY", cls: "sit", label: "Preparing start" };
+        if (phase === "SIT_READY") return { title: "SIT READY", cls: "sit", label: "Take your position" };
+        if (phase === "ATTENTION") return { title: "ATTENTION", cls: "attention", label: "Hold still" };
+        if (phase === "WAIT_ROW") return { title: "ATTENTION", cls: "attention", label: "Wait for ROW" };
+        if (phase === "ROW") return { title: "ROW!", cls: "row", label: "Go" };
+        if (phase === "FALSE_START") return { title: "FALSE START", cls: "false", label: "Reset and wait" };
+        return null;
+      }
+
+      function setErgKmRow(id, meters, active) {
+        var row = el(id);
+        if (!row) return;
+        row.className = "erg-km-row" + (active ? " active" : "");
+        var v = row.querySelector(".v");
+        if (v) v.textContent = kmFromMeters(meters) + " km";
+      }
+
+      function fillSessionPanel(d, nowMs) {
+        var panel = el("barSession");
+        if (!panel) return;
+        if (isWorkout(d) || d.sessionKind !== "solo_ultra") {
+          panel.className = "bar-session hide";
+          return;
+        }
+        panel.className = "bar-session";
+        var totalSec = d.sessionElapsedSeconds;
+        if (totalSec == null || !isFinite(totalSec)) totalSec = d.totalTime || 0;
+        else if (!d.isPaused) {
+          totalSec += (nowMs - lastRecvMs) / 1000;
+        }
+        el("barSessionTotal").textContent = fmtHMS(totalSec);
+        var by = d.distanceByErg || {};
+        var current = d.ergType || "";
+        setErgKmRow("barKmSki", by.skierg || 0, current === "skierg");
+        setErgKmRow("barKmRow", by.rowerg || 0, current === "rowerg");
+        setErgKmRow("barKmBike", by.bikeerg || 0, current === "bikeerg");
+      }
+
+      function sessionStoryLine(d, nowMs) {
+        if (isWorkout(d) || d.sessionKind !== "solo_ultra") return "";
+        var totalSec = d.sessionElapsedSeconds;
+        if (totalSec == null || !isFinite(totalSec)) totalSec = d.totalTime || 0;
+        else if (!d.isPaused) {
+          totalSec += (nowMs - lastRecvMs) / 1000;
+        }
+        var by = d.distanceByErg || {};
+        return "Total " + fmtHMS(totalSec) +
+          " · Ski " + kmFromMeters(by.skierg || 0) +
+          " · Row " + kmFromMeters(by.rowerg || 0) +
+          " · Bike " + kmFromMeters(by.bikeerg || 0);
       }
       function num(n) { return (n || 0).toLocaleString("en-US"); }
       function ergName(e) {
@@ -1215,24 +1345,46 @@
         el("stage").className = "on";
 
         var isTrans = d.state === "transition";
+        var isCountdown = d.state === "countdown";
+        var startCopy = isCountdown ? raceStartCopy(d.raceStartPhase) : null;
+        var isFirstStart = isCountdown && !(d.recentRounds && d.recentRounds.length) && !d.prevRound;
+        var panel = document.querySelector(".stage-panel");
+        if (panel) {
+          panel.className = "stage-panel" + (isFirstStart || startCopy ? " start-clean" : "");
+        }
+
         var secs = 0;
         if (isTrans) {
           secs = (d.transitionSeconds || 0) - (nowMs - lastRecvMs) / 1000;
-        } else if (d.state === "countdown") {
-          // App countdown is typically 10s — use remaining if provided, else transitionSeconds field
+        } else if (isCountdown && !startCopy) {
+          // Legacy numeric countdown fallback
           secs = (d.transitionSeconds != null ? d.transitionSeconds : (d.roundRemainingSeconds || 0));
           secs -= (nowMs - lastRecvMs) / 1000;
         }
         if (secs < 0) secs = 0;
-        var urgent = secs <= 10;
+        var urgent = isTrans && secs <= 10;
 
-        el("stageKicker").textContent = isTrans ? "Transition" : "Get ready";
-        el("stageClockLabel").textContent = urgent
-          ? (isTrans ? "Starting soon" : "Go in")
-          : (isTrans ? "Next round in" : "Countdown");
+        el("stageKicker").textContent = isTrans
+          ? "Transition"
+          : (startCopy ? "Race start" : "Get ready");
+        el("stageClockLabel").textContent = startCopy
+          ? startCopy.label
+          : (urgent
+            ? (isTrans ? "Starting soon" : "Go in")
+            : (isTrans ? "Next round in" : "Countdown"));
+
         var clock = el("stageClock");
-        clock.textContent = fmtClock(secs);
-        clock.className = "stage-clock" + (urgent ? " urgent" : "");
+        var startHero = el("stageStartHero");
+        if (startCopy) {
+          clock.className = "stage-clock hide";
+          startHero.textContent = startCopy.title;
+          startHero.className = "stage-start-hero " + startCopy.cls;
+        } else {
+          clock.textContent = fmtClock(secs);
+          clock.className = "stage-clock" + (urgent ? " urgent" : "");
+          startHero.className = "stage-start-hero hide";
+        }
+
         // Prefer ergType over nextErg in breaks: older app builds wrongly sent
         // nextErg = currentRound+1 (Ski→Bike). ergType is already the upcoming erg.
         var upcomingId = resolveUpcomingErg(d);
@@ -1281,6 +1433,18 @@
         }
 
         renderRoundsBoard(d);
+        if (isFirstStart || startCopy) {
+          el("roundsEmpty").textContent = startCopy
+            ? (startCopy.title + " · " + upcoming)
+            : "Waiting for Round 1";
+          el("roundsEmpty").className = "rounds-empty";
+          el("roundsTable").className = "hide";
+          var tickerBits = [roundTxt, upcoming];
+          if (d.sessionElapsedSeconds != null) {
+            tickerBits.push("Session " + fmtHMS(d.sessionElapsedSeconds));
+          }
+          el("stageTicker").textContent = tickerBits.join(" · ");
+        }
       }
 
       function fillSameErgStory(d) {
@@ -1366,7 +1530,7 @@
           el("barPace").textContent = paceStr;
           el("barPaceUnit").textContent = paceUnit;
           el("barTime").textContent = timeStr;
-          el("barTimeLabel").textContent = isWorkout(d) ? "Elapsed" : "Ride time";
+          el("barTimeLabel").textContent = isWorkout(d) ? "Elapsed" : "Round";
           el("barWatts").textContent = watts;
           el("barCadLabel").textContent = cadLabel;
           el("barCad").textContent = cad;
@@ -1431,6 +1595,7 @@
           } else {
             idEl.className = "story-line hide";
           }
+          fillSessionPanel(d, nowMs);
           return;
         }
 
@@ -1467,7 +1632,7 @@
         el("paceVal").textContent = paceStr;
         el("paceUnit").textContent = paceUnit;
         el("timeVal").textContent = timeStr;
-        el("timeLabel").textContent = isWorkout(d) ? "Elapsed" : "Time";
+        el("timeLabel").textContent = isWorkout(d) ? "Elapsed" : "Round";
 
         if (target > 0) {
           el("distVal").textContent = num(Math.round(dist)) + " / " + num(target) + " m";
@@ -1509,6 +1674,14 @@
         } else {
           cardPace.className = "story-line hide";
         }
+        var cardSession = el("cardSessionLine");
+        var sessLine = sessionStoryLine(d, nowMs);
+        if (sessLine) {
+          cardSession.textContent = sessLine;
+          cardSession.className = "story-line hi";
+        } else {
+          cardSession.className = "story-line hide";
+        }
 
         if (isWorkout(d)) {
           el("totals").textContent = (d.workoutName || "Workout") + " · " + ergName(d.ergType);
@@ -1519,7 +1692,12 @@
           var ev = eventLabel(d);
           if (ev) identityBits.push(ev);
           var stats =
-            "Rounds " + (d.totalRounds || 0) + " · " + km + " km · " + fmtHMS(d.totalTime || 0);
+            "Rounds " + (d.totalRounds || 0) + " · " + km + " km";
+          if (d.sessionElapsedSeconds != null) {
+            stats += " · Total " + fmtHMS(d.sessionElapsedSeconds);
+          } else {
+            stats += " · " + fmtHMS(d.totalTime || 0);
+          }
           if (typeof d.totalBufferSeconds === "number") {
             stats += " · " + fmtSignedClock(d.totalBufferSeconds) + " buf";
           }
