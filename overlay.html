@@ -6,14 +6,19 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
-  <!-- overlay-build: 2026-08-13-break-left-rail -->
+  <!-- overlay-build: 2026-08-23-instagram-reel -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
     Stable URL: u, k, c (required). Layout arrives via Realtime overlayConfig.
-    Optional query fallback: pos, scale, margin, name, format
+    Optional query fallback: pos, scale, margin, name, format, layout, lock, demo, erg
     format = youtube-footer | youtube-lower-third | youtube-card
-             | instagram-vertical | instagram-square | instagram-panel
+             | instagram-reel | instagram-vertical | instagram-square | instagram-panel
+    format=instagram is an alias for instagram-reel.
+    An instagram-* format in the URL is pinned (lock=0 disables, lock=1 pins any format),
+    so a dedicated Reel browser source ignores the format chosen in Stream Setup.
+    layout = single | split-left | split-right | split-top | split-bottom (Reel only)
+    demo=1[&erg=bikeerg] renders representative values without a live session.
   -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -222,6 +227,195 @@
     .fmt-instagram-vertical .hero-cell.time .v,
     .fmt-instagram-square .hero-cell.time .v { font-size: 44px; }
     .fmt-instagram-panel .hero-cell .v { font-size: 48px; }
+
+    /* ── Instagram / Reel data layer (format=instagram) ──────────────
+       --reel-u = 1% of the width of a 1080-wide 9:16 canvas.
+       min() of vw/vh keeps the block inside cropped and split canvases,
+       so the same markup works for single, split-left/right/top/bottom. */
+    #overlay { --reel-u: min(1vw, 0.5625vh); }
+
+    .reel-shell {
+      /* Instagram chrome safe insets, expressed relative to the canvas */
+      --safe-top: calc(var(--reel-u) * 16.7);    /* 180px @1080 */
+      --safe-bottom: calc(var(--reel-u) * 27.8); /* 300px @1080 */
+      --safe-left: calc(var(--reel-u) * 5.6);    /*  60px @1080 */
+      --safe-right: calc(var(--reel-u) * 13.9);  /* 150px @1080 */
+      display: none;
+      position: fixed;
+      top: calc(var(--safe-top) + var(--margin));
+      right: calc(var(--safe-right) + var(--margin));
+      bottom: calc(var(--safe-bottom) + var(--margin));
+      left: calc(var(--safe-left) + var(--margin));
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .fmt-instagram-reel .reel-shell { display: flex; }
+    .fmt-instagram-reel .anchor { display: none !important; }
+
+    /* Split crops: only edges that still touch Instagram UI keep the big inset */
+    .lay-split-left .reel-shell { --safe-right: calc(var(--reel-u) * 5.6); }
+    .lay-split-right .reel-shell { --safe-left: calc(var(--reel-u) * 5.6); }
+    .lay-split-top .reel-shell { --safe-bottom: calc(var(--reel-u) * 8); }
+    .lay-split-bottom .reel-shell { --safe-top: calc(var(--reel-u) * 8); }
+
+    .pos-center-top .reel-shell,
+    .pos-top-left .reel-shell,
+    .pos-top-right .reel-shell { align-items: flex-start; }
+    .pos-bottom-left .reel-shell,
+    .pos-top-left .reel-shell { justify-content: flex-start; }
+    .pos-bottom-right .reel-shell,
+    .pos-top-right .reel-shell { justify-content: flex-end; }
+
+    .reel-block {
+      position: relative;
+      isolation: isolate;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: calc(var(--reel-u) * 3);
+      text-align: center;
+      max-width: 100%;
+      transform: scale(var(--scale));
+      transform-origin: bottom center;
+    }
+    .pos-center-top .reel-block { transform-origin: top center; }
+    .pos-top-left .reel-block { transform-origin: top left; }
+    .pos-top-right .reel-block { transform-origin: top right; }
+    .pos-bottom-left .reel-block { transform-origin: bottom left; }
+    .pos-bottom-right .reel-block { transform-origin: bottom right; }
+    .reel-block.paused { opacity: 0.82; }
+
+    /* Soft scrim instead of an opaque dashboard box — video stays visible.
+       closest-side fades to fully transparent, so there is no visible edge. */
+    .reel-block::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: calc(var(--reel-u) * -9) calc(var(--reel-u) * -14);
+      background:
+        radial-gradient(ellipse closest-side,
+          rgba(13, 11, 17, 0.72) 0%,
+          rgba(13, 11, 17, 0.52) 48%,
+          rgba(13, 11, 17, 0.18) 78%,
+          rgba(13, 11, 17, 0) 100%);
+    }
+
+    .reel-status {
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+      font-size: calc(var(--reel-u) * 2.6);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--fg);
+      padding: calc(var(--reel-u) * 0.7) calc(var(--reel-u) * 2.2);
+      border-radius: 999px;
+      background: rgba(13, 11, 17, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .reel-status.hide { display: none !important; }
+
+    .reel-pace { display: flex; flex-direction: column; align-items: center; }
+    .reel-pace-v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: calc(var(--reel-u) * 14);
+      line-height: 0.92;
+      letter-spacing: -0.02em;
+      color: var(--fg);
+      display: block;
+      min-width: 4.6ch;
+      text-shadow: 0 calc(var(--reel-u) * 0.25) calc(var(--reel-u) * 1.6) rgba(0, 0, 0, 0.8);
+    }
+    .reel-pace-u {
+      font-family: "DM Sans", sans-serif;
+      font-weight: 600;
+      font-size: calc(var(--reel-u) * 3.4);
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-top: calc(var(--reel-u) * 0.8);
+      text-shadow: 0 calc(var(--reel-u) * 0.2) calc(var(--reel-u) * 1.2) rgba(0, 0, 0, 0.8);
+    }
+
+    .reel-dist {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: calc(var(--reel-u) * 8.6);
+      line-height: 1;
+      letter-spacing: -0.01em;
+      color: var(--fg);
+      min-width: 7ch;
+      text-shadow: 0 calc(var(--reel-u) * 0.25) calc(var(--reel-u) * 1.5) rgba(0, 0, 0, 0.8);
+    }
+    .reel-dist .u {
+      font-family: "DM Sans", sans-serif;
+      font-weight: 600;
+      font-size: calc(var(--reel-u) * 3.6);
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-left: calc(var(--reel-u) * 1.4);
+    }
+
+    .reel-support {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: calc(var(--reel-u) * 3);
+      margin-top: calc(var(--reel-u) * 0.6);
+    }
+    .reel-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: calc(var(--reel-u) * 0.9);
+      min-width: calc(var(--reel-u) * 17);
+      padding: calc(var(--reel-u) * 1.3) calc(var(--reel-u) * 1.6);
+      border-radius: calc(var(--reel-u) * 1.6);
+      background: rgba(13, 11, 17, 0.34);
+    }
+    .reel-cell-v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: calc(var(--reel-u) * 5.4);
+      line-height: 1;
+      color: var(--fg);
+      min-width: 3ch;
+      text-shadow: 0 calc(var(--reel-u) * 0.2) calc(var(--reel-u) * 1.2) rgba(0, 0, 0, 0.8);
+    }
+    .reel-cell-k {
+      font-family: "DM Sans", sans-serif;
+      font-weight: 600;
+      font-size: calc(var(--reel-u) * 2.2);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .reel-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: calc(var(--reel-u) * 1.4);
+      margin-top: calc(var(--reel-u) * 0.6);
+    }
+    .reel-brand::before {
+      content: "";
+      width: calc(var(--reel-u) * 10);
+      height: calc(var(--reel-u) * 0.28);
+      border-radius: 999px;
+      background: var(--accent);
+      opacity: 0.9;
+    }
+    .reel-logo {
+      height: calc(var(--reel-u) * 4);
+      width: auto;
+      display: block;
+      object-fit: contain;
+      opacity: 0.95;
+    }
 
     /* ── TV footer bar ── */
     .bar-shell {
@@ -797,6 +991,39 @@
         </div>
       </div>
     </div>
+
+  <!-- Instagram / Reel data layer (format=instagram) -->
+  <div id="reelShell" class="reel-shell">
+    <div id="reelBlock" class="reel-block">
+      <div id="reelStatus" class="reel-status hide">BREAK</div>
+
+      <div class="reel-pace">
+        <span id="reelPace" class="reel-pace-v">--:--</span>
+        <div id="reelPaceUnit" class="reel-pace-u">/500m</div>
+      </div>
+
+      <div class="reel-dist"><span id="reelDist">0</span><span class="u">m</span></div>
+
+      <div class="reel-support">
+        <div class="reel-cell">
+          <span id="reelHr" class="reel-cell-v">--</span>
+          <div class="reel-cell-k">HR bpm</div>
+        </div>
+        <div class="reel-cell">
+          <span id="reelRate" class="reel-cell-v">--</span>
+          <div id="reelRateLabel" class="reel-cell-k">SPM</div>
+        </div>
+        <div class="reel-cell">
+          <span id="reelDrag" class="reel-cell-v">--</span>
+          <div class="reel-cell-k">Drag</div>
+        </div>
+      </div>
+
+      <div class="reel-brand">
+        <img class="reel-logo" src="assets/ergultra-logo.png" alt="ERGULTRA" />
+      </div>
+    </div>
+  </div>
   </div>
 
   <!-- Center stage for transition / countdown -->
@@ -882,7 +1109,13 @@
     (function () {
       var FORMATS = {
         "youtube-footer": 1, "youtube-lower-third": 1, "youtube-card": 1,
+        "instagram-reel": 1,
         "instagram-vertical": 1, "instagram-square": 1, "instagram-panel": 1
+      };
+      // Short aliases so a Reel browser source can just use ?format=instagram
+      var FORMAT_ALIASES = { "instagram": "instagram-reel", "reel": "instagram-reel", "ig": "instagram-reel" };
+      var LAYOUTS = {
+        "single": 1, "split-left": 1, "split-right": 1, "split-top": 1, "split-bottom": 1
       };
 
       var qs = new URLSearchParams(location.search);
@@ -893,12 +1126,20 @@
       // Query layout is fallback until the first Realtime overlayConfig packet.
       var pos = qs.get("pos") || "center-bottom";
       var format = qs.get("format") || "";
+      if (FORMAT_ALIASES[format]) format = FORMAT_ALIASES[format];
       var legacyTheme = qs.get("theme") || "";
+      // A format pinned in the URL wins over Stream Setup, so a dedicated
+      // Reel browser source stays a Reel while the app drives the other sources.
+      var formatLocked = !!FORMATS[format] &&
+        (qs.get("lock") !== "0") &&
+        (format.indexOf("instagram-") === 0 || qs.get("lock") === "1");
       if (!FORMATS[format]) {
         if (legacyTheme === "compact") format = "youtube-lower-third";
         else if (legacyTheme === "minimal") format = "youtube-card";
         else format = "youtube-footer";
       }
+      var layout = qs.get("layout") || "single";
+      if (!LAYOUTS[layout]) layout = "single";
 
       var scale = parseFloat(qs.get("scale") || "1");
       if (!isFinite(scale) || scale <= 0) scale = 1;
@@ -910,6 +1151,7 @@
 
       var root = document.getElementById("overlay");
       var isBar = format === "youtube-footer" || format === "youtube-lower-third";
+      var isReel = format === "instagram-reel";
       var el = function (id) { return document.getElementById(id); };
       var latest = null;
       var lastRecvMs = 0;
@@ -917,7 +1159,8 @@
 
       function applyLayout() {
         isBar = format === "youtube-footer" || format === "youtube-lower-third";
-        root.className = "pos-" + pos + " fmt-" + format;
+        isReel = format === "instagram-reel";
+        root.className = "pos-" + pos + " fmt-" + format + " lay-" + layout;
         root.style.setProperty("--scale", String(scale));
         root.style.setProperty("--margin", margin + "px");
       }
@@ -925,7 +1168,7 @@
 
       function applyOverlayConfig(cfg) {
         if (!cfg || typeof cfg !== "object") return;
-        if (cfg.format && FORMATS[cfg.format]) format = cfg.format;
+        if (!formatLocked && cfg.format && FORMATS[cfg.format]) format = cfg.format;
         if (typeof cfg.pos === "string" && cfg.pos) pos = cfg.pos;
         if (typeof cfg.scale === "number" && isFinite(cfg.scale) && cfg.scale > 0) {
           scale = Math.max(0.3, Math.min(3, cfg.scale));
@@ -1139,12 +1382,18 @@
         el("active").className = "hide";
         el("barWaiting").className = "bar-waiting hide";
         el("barActive").className = "hide";
+        if (isReel) return;
         if (isBar) el("barShell").style.display = "none";
         else el("cardShell").style.display = "none";
       }
 
       function showChromeActive() {
         el("stage").className = "";
+        if (isReel) {
+          el("barShell").style.display = "none";
+          el("cardShell").style.display = "none";
+          return;
+        }
         if (isBar) {
           el("barShell").style.display = "";
           el("cardShell").style.display = "none";
@@ -1721,9 +1970,60 @@
         }
       }
 
+      /**
+       * Instagram / Reel data layer.
+       * Five values are always on screen: Pace, Distance, HR, Rate, Drag.
+       * Everything else is reduced to a small status pill so the athlete stays visible.
+       */
+      function renderReel(d, nowMs) {
+        el("stage").className = "";
+        showChromeActive();
+
+        var isBike = d.ergType === "bikeerg";
+        el("reelPace").textContent = fmtPace(d.pace);
+        el("reelPaceUnit").textContent = isBike ? "/1000m" : "/500m";
+
+        var dist = d.totalDistance > 0 ? d.totalDistance : (d.distance || 0);
+        el("reelDist").textContent = num(Math.round(dist));
+
+        var hrEl = el("reelHr");
+        hrEl.textContent = d.heartRate > 0 ? String(Math.round(d.heartRate)) : "--";
+        hrEl.style.color = d.heartRate > 0 ? zoneColor(d.hrZone || 0) : "#FFFFFF";
+
+        el("reelRate").textContent = d.strokeRate > 0 ? String(Math.round(d.strokeRate)) : "--";
+        el("reelRateLabel").textContent = isBike ? "RPM" : "SPM";
+        el("reelDrag").textContent = d.dragFactor > 0 ? String(Math.round(d.dragFactor)) : "--";
+
+        var status = "";
+        if (d.isPaused || d.state === "paused") status = "Paused";
+        else if (d.state === "countdown") {
+          var start = raceStartCopy(d.raceStartPhase);
+          status = start ? start.title : "Get ready";
+        }
+        else if (d.state === "transition") {
+          var rest = d.transitionSeconds || 0;
+          if (!d.isPaused) rest -= (nowMs - lastRecvMs) / 1000;
+          status = "Break " + fmtClock(Math.max(0, rest));
+        } else if (isWorkout(d) && d.isRest) status = "Rest";
+        var statusEl = el("reelStatus");
+        if (status) {
+          statusEl.textContent = status;
+          statusEl.className = "reel-status";
+        } else {
+          statusEl.className = "reel-status hide";
+        }
+
+        el("reelBlock").className = d.isPaused ? "reel-block paused" : "reel-block";
+      }
+
       function showWaiting() {
         el("stage").className = "";
         showChromeActive();
+        if (isReel) {
+          el("reelStatus").textContent = "Standby";
+          el("reelStatus").className = "reel-status";
+          return;
+        }
         if (isBar) {
           el("barWaiting").className = "bar-waiting";
           el("barActive").className = "hide";
@@ -1738,7 +2038,8 @@
         var d = latest;
         var stale = !d || (nowMs - lastRecvMs > 5000);
         if (stale) { showWaiting(); return; }
-        if (d.state === "transition" || d.state === "countdown") renderStage(d, nowMs);
+        if (isReel) renderReel(d, nowMs);
+        else if (d.state === "transition" || d.state === "countdown") renderStage(d, nowMs);
         else renderActive(d, nowMs);
       }
 
@@ -1752,7 +2053,29 @@
         lastRecvMs = performance.now();
       }
 
-      if (window.supabase && supaUrl && supaKey && channel) {
+      /** ?demo=1[&erg=bikeerg] — representative values for layout checks in OBS. */
+      function demoPayload() {
+        var erg = qs.get("erg") || "rowerg";
+        if (erg === "bikeerg") {
+          return {
+            sessionKind: "workout", state: "active", ergType: "bikeerg",
+            distance: 8420, totalDistance: 8420, pace: 125, strokeRate: 82,
+            heartRate: 148, hrZone: 3, watts: 245, dragFactor: 110,
+            elapsedTime: 1053, workoutName: "BikeErg Demo"
+          };
+        }
+        return {
+          sessionKind: "workout", state: "active", ergType: erg,
+          distance: 1847, totalDistance: 1847, pace: 108, strokeRate: 28,
+          heartRate: 158, hrZone: 4, watts: 262, dragFactor: 125,
+          elapsedTime: 399, workoutName: "Demo Session"
+        };
+      }
+
+      if (qs.get("demo") === "1") {
+        onData(demoPayload());
+        setInterval(function () { onData(demoPayload()); }, 500);
+      } else if (window.supabase && supaUrl && supaKey && channel) {
         var sb = window.supabase.createClient(supaUrl, supaKey, {
           realtime: { params: { eventsPerSecond: 5 } }
         });
