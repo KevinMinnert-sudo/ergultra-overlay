@@ -6,15 +6,17 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
-  <!-- overlay-build: 2026-08-23-instagram-reel -->
+  <!-- overlay-build: 2026-08-31-reel-calories-timer -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
     Stable URL: u, k, c (required). Layout arrives via Realtime overlayConfig.
     Optional query fallback: pos, scale, margin, name, format, layout, lock, demo, erg
     format = youtube-footer | youtube-lower-third | youtube-card
-             | instagram-reel | instagram-vertical | instagram-square | instagram-panel
-    format=instagram is an alias for instagram-reel.
+             | instagram-reel | instagram-reel-calories
+             | instagram-vertical | instagram-square | instagram-panel
+    format=instagram is an alias for instagram-reel,
+    format=instagram-cal for instagram-reel-calories (kcal instead of meters).
     An instagram-* format in the URL is pinned (lock=0 disables, lock=1 pins any format),
     so a dedicated Reel browser source ignores the format chosen in Stream Setup.
     layout = single | split-left | split-right | split-top | split-bottom (Reel only)
@@ -249,8 +251,9 @@
       align-items: flex-end;
       justify-content: center;
     }
-    .fmt-instagram-reel .reel-shell { display: flex; }
-    .fmt-instagram-reel .anchor { display: none !important; }
+    /* .reel is set by applyLayout() for every instagram-reel* format */
+    .reel .reel-shell { display: flex; }
+    .reel .anchor { display: none !important; }
 
     /* Split crops: only edges that still touch Instagram UI keep the big inset */
     .lay-split-left .reel-shell { --safe-right: calc(var(--reel-u) * 5.6); }
@@ -334,6 +337,34 @@
       letter-spacing: 0.12em;
       color: var(--muted);
       margin-top: calc(var(--reel-u) * 0.8);
+      text-shadow: 0 calc(var(--reel-u) * 0.2) calc(var(--reel-u) * 1.2) rgba(0, 0, 0, 0.8);
+    }
+
+    /* Small elapsed clock under the pace: how long for these meters / kcal */
+    .reel-timer {
+      display: flex;
+      align-items: baseline;
+      gap: calc(var(--reel-u) * 1.2);
+      margin-top: calc(var(--reel-u) * 1.4);
+    }
+    .reel-timer-k {
+      font-family: "DM Sans", sans-serif;
+      font-weight: 600;
+      font-size: calc(var(--reel-u) * 2.4);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .reel-timer-v {
+      font-family: "JetBrains Mono", monospace;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: calc(var(--reel-u) * 4.6);
+      line-height: 1;
+      letter-spacing: 0.01em;
+      color: #E5E7EB;
+      min-width: 5.4ch;
+      text-align: left;
       text-shadow: 0 calc(var(--reel-u) * 0.2) calc(var(--reel-u) * 1.2) rgba(0, 0, 0, 0.8);
     }
 
@@ -1000,9 +1031,15 @@
       <div class="reel-pace">
         <span id="reelPace" class="reel-pace-v">--:--</span>
         <div id="reelPaceUnit" class="reel-pace-u">/500m</div>
+        <div class="reel-timer">
+          <span class="reel-timer-k">Time</span>
+          <span id="reelTimer" class="reel-timer-v">0:00</span>
+        </div>
       </div>
 
-      <div class="reel-dist"><span id="reelDist">0</span><span class="u">m</span></div>
+      <div class="reel-dist">
+        <span id="reelDist">0</span><span id="reelDistUnit" class="u">m</span>
+      </div>
 
       <div class="reel-support">
         <div class="reel-cell">
@@ -1109,11 +1146,16 @@
     (function () {
       var FORMATS = {
         "youtube-footer": 1, "youtube-lower-third": 1, "youtube-card": 1,
-        "instagram-reel": 1,
+        "instagram-reel": 1, "instagram-reel-calories": 1,
         "instagram-vertical": 1, "instagram-square": 1, "instagram-panel": 1
       };
       // Short aliases so a Reel browser source can just use ?format=instagram
-      var FORMAT_ALIASES = { "instagram": "instagram-reel", "reel": "instagram-reel", "ig": "instagram-reel" };
+      var FORMAT_ALIASES = {
+        "instagram": "instagram-reel", "reel": "instagram-reel", "ig": "instagram-reel",
+        "instagram-cal": "instagram-reel-calories",
+        "instagram-calories": "instagram-reel-calories",
+        "reel-cal": "instagram-reel-calories"
+      };
       var LAYOUTS = {
         "single": 1, "split-left": 1, "split-right": 1, "split-top": 1, "split-bottom": 1
       };
@@ -1151,7 +1193,8 @@
 
       var root = document.getElementById("overlay");
       var isBar = format === "youtube-footer" || format === "youtube-lower-third";
-      var isReel = format === "instagram-reel";
+      var isReel = format.indexOf("instagram-reel") === 0;
+      var isReelCalories = format === "instagram-reel-calories";
       var el = function (id) { return document.getElementById(id); };
       var latest = null;
       var lastRecvMs = 0;
@@ -1159,8 +1202,10 @@
 
       function applyLayout() {
         isBar = format === "youtube-footer" || format === "youtube-lower-third";
-        isReel = format === "instagram-reel";
-        root.className = "pos-" + pos + " fmt-" + format + " lay-" + layout;
+        isReel = format.indexOf("instagram-reel") === 0;
+        isReelCalories = format === "instagram-reel-calories";
+        root.className = "pos-" + pos + " fmt-" + format + " lay-" + layout +
+          (isReel ? " reel" : "");
         root.style.setProperty("--scale", String(scale));
         root.style.setProperty("--margin", margin + "px");
       }
@@ -1972,19 +2017,36 @@
 
       /**
        * Instagram / Reel data layer.
-       * Five values are always on screen: Pace, Distance, HR, Rate, Drag.
-       * Everything else is reduced to a small status pill so the athlete stays visible.
+       * Five values are always on screen: Pace, Distance (or kcal in the
+       * calories format), HR, Rate, Drag — plus a small session clock under the
+       * pace. Everything else is reduced to a status pill so the athlete stays
+       * visible.
        */
       function renderReel(d, nowMs) {
         el("stage").className = "";
         showChromeActive();
 
         var isBike = d.ergType === "bikeerg";
+        var running = d.state === "active" && !d.isPaused;
         el("reelPace").textContent = fmtPace(d.pace);
         el("reelPaceUnit").textContent = isBike ? "/1000m" : "/500m";
 
-        var dist = d.totalDistance > 0 ? d.totalDistance : (d.distance || 0);
-        el("reelDist").textContent = num(Math.round(dist));
+        // Session clock, interpolated between the 2 Hz packets. Pairs with the
+        // metric below so viewers read "this long for these meters / kcal".
+        var elapsed = d.sessionElapsedSeconds;
+        if (elapsed == null || !isFinite(elapsed)) elapsed = d.elapsedTime || 0;
+        if (running) elapsed += (nowMs - lastRecvMs) / 1000;
+        el("reelTimer").textContent = fmtHMS(Math.max(0, elapsed));
+
+        if (isReelCalories) {
+          var kcal = d.calories || 0;
+          el("reelDist").textContent = kcal > 0 ? num(Math.round(kcal)) : "0";
+          el("reelDistUnit").textContent = "kcal";
+        } else {
+          var dist = d.totalDistance > 0 ? d.totalDistance : (d.distance || 0);
+          el("reelDist").textContent = num(Math.round(dist));
+          el("reelDistUnit").textContent = "m";
+        }
 
         var hrEl = el("reelHr");
         hrEl.textContent = d.heartRate > 0 ? String(Math.round(d.heartRate)) : "--";
@@ -2020,6 +2082,19 @@
         el("stage").className = "";
         showChromeActive();
         if (isReel) {
+          // The bar and card layers swap their metrics out for a waiting state.
+          // The reel layer keeps its five values on screen, so a dropped stream
+          // would otherwise leave the last live pace standing in front of
+          // viewers as though the athlete were still rowing.
+          el("reelPace").textContent = fmtPace(0);
+          el("reelTimer").textContent = fmtHMS(0);
+          el("reelDist").textContent = "--";
+          el("reelDistUnit").textContent = isReelCalories ? "kcal" : "m";
+          var hrEl = el("reelHr");
+          hrEl.textContent = "--";
+          hrEl.style.color = "#FFFFFF";
+          el("reelRate").textContent = "--";
+          el("reelDrag").textContent = "--";
           el("reelStatus").textContent = "Standby";
           el("reelStatus").className = "reel-status";
           return;
@@ -2053,22 +2128,30 @@
         lastRecvMs = performance.now();
       }
 
-      /** ?demo=1[&erg=bikeerg] — representative values for layout checks in OBS. */
+      /**
+       * ?demo=1[&erg=bikeerg] — representative values for layout checks in OBS.
+       * Distance, calories and the clock advance in real time so digit rollovers
+       * (99 → 100, 9:59 → 10:00) can be checked for layout shift.
+       */
+      var demoStartMs = Date.now();
       function demoPayload() {
         var erg = qs.get("erg") || "rowerg";
-        if (erg === "bikeerg") {
-          return {
-            sessionKind: "workout", state: "active", ergType: "bikeerg",
-            distance: 8420, totalDistance: 8420, pace: 125, strokeRate: 82,
-            heartRate: 148, hrZone: 3, watts: 245, dragFactor: 110,
-            elapsedTime: 1053, workoutName: "BikeErg Demo"
-          };
-        }
+        var t = (Date.now() - demoStartMs) / 1000;
+        var isBike = erg === "bikeerg";
+        var base = isBike
+          ? { dist: 8420, kcal: 612, secs: 1053, mps: 8.0, kcalPerSec: 0.28, pace: 125, rate: 82, hr: 148, zone: 3, watts: 245, drag: 110, name: "BikeErg Demo" }
+          : { dist: 1847, kcal: 121, secs: 399, mps: 4.63, kcalPerSec: 0.3, pace: 108, rate: 28, hr: 158, zone: 4, watts: 262, drag: 125, name: "Demo Session" };
+        var dist = Math.round(base.dist + t * base.mps);
         return {
           sessionKind: "workout", state: "active", ergType: erg,
-          distance: 1847, totalDistance: 1847, pace: 108, strokeRate: 28,
-          heartRate: 158, hrZone: 4, watts: 262, dragFactor: 125,
-          elapsedTime: 399, workoutName: "Demo Session"
+          distance: dist, totalDistance: dist,
+          calories: Math.round(base.kcal + t * base.kcalPerSec),
+          pace: base.pace, strokeRate: base.rate,
+          heartRate: base.hr, hrZone: base.zone, watts: base.watts,
+          dragFactor: base.drag,
+          elapsedTime: Math.round(base.secs + t),
+          sessionElapsedSeconds: Math.round(base.secs + t),
+          workoutName: base.name
         };
       }
 
