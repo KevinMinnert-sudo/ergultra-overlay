@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <title>ErgUltra Live Overlay</title>
-  <!-- overlay-build: 2026-08-31-reel-calories-timer -->
+  <!-- overlay-build: 2026-09-01-reel-timer-first-stroke -->
   <!--
     ErgUltra Live Stream Overlay — TV broadcast grade.
 
@@ -2033,9 +2033,13 @@
 
         // Session clock, interpolated between the 2 Hz packets. Pairs with the
         // metric below so viewers read "this long for these meters / kcal".
+        // A clock at exactly zero has not started: the workout is armed but
+        // nobody has taken the first stroke, so distance and calories are zero
+        // too. Interpolating there would let the clock run ahead of the value
+        // it describes.
         var elapsed = d.sessionElapsedSeconds;
         if (elapsed == null || !isFinite(elapsed)) elapsed = d.elapsedTime || 0;
-        if (running) elapsed += (nowMs - lastRecvMs) / 1000;
+        if (running && elapsed > 0) elapsed += (nowMs - lastRecvMs) / 1000;
         el("reelTimer").textContent = fmtHMS(Math.max(0, elapsed));
 
         if (isReelCalories) {
